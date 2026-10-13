@@ -1,0 +1,27 @@
+.vscode/
+.DS_Store
+
+wip/
+
+dist/
+*.cert
+*.crt
+*.key
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+node_modules/
+jspm_packages/
+
+
+.build/
+build/
+
+.env
+.env.test
