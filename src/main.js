@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 
 import { createBackground } from './background.js';
+import { playTone } from './audio.js';
 
 const errorText = document.getElementById('error');
 
@@ -42,7 +43,8 @@ addEventListener('pointermove', (e) => {
   mouse.set(e.clientX / innerWidth, 1 - e.clientY / innerHeight);
 });
 
-addEventListener('pointerdown', () => {
+addEventListener('pointerdown', (e) => {
+  playTone(e.clientX / innerWidth);
   bg.kick.value = 1;
   bg.level.value = Math.min(1, bg.level.value + 0.5);
 });
