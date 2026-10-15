@@ -4,12 +4,20 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SoundLab</title>
+    <title>WebGPU Three.js Challenge</title>
     <link rel="stylesheet" href="/src/style.css" />
 </head>
 
 <body>
     <div id="app"></div>
+
+    <nav id="toolbar" aria-label="Tools">
+        <p class="title">Musical lines</p>
+        <button type="button" data-mode="draw"><span class="icon">✎</span> Draw lines <kbd>D</kbd></button>
+        <button type="button" data-mode="play"><span class="icon">♪</span> Play <kbd>P</kbd></button>
+        <button type="button" id="clear"><span class="icon">✕</span> Clear all</button>
+        <p id="hint"></p>
+    </nav>
     <p id="error" class="error" hidden></p>
 
     <script type="module" src="/src/main.js"></script>

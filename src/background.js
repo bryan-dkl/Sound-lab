@@ -8,7 +8,7 @@ import creationSource from './shaders/creation.wgsl?raw';
 
 const creation = wgslFn(creationSource);
 
-export function createBackground(scene) {
+export const createBackground = (scene) => {
   const uniforms = {
     time: uniform(0),
     center: uniform(new THREE.Vector2(0.5, 0.5)),
@@ -26,9 +26,9 @@ export function createBackground(scene) {
     kick: uniforms.kick,
   });
 
-  // clicks briefly brighten the whole thing
-  const brightness = uniforms.kick.mul(0.4).add(0.6);
+  // kept dim so the lines stand out; clicks only brighten it a little
+  const brightness = uniforms.kick.mul(0.1).add(0.3);
   scene.backgroundNode = vec4(color.mul(brightness), 1.0);
 
   return uniforms;
-}
+};
