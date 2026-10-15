@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 
 import { createBackground } from './background.js';
 import { createLines } from './lines.js';
-import { playNote, noteForX, startAudio } from './audio.js';
+import { playNote, holdNote, releaseNote, noteForX, startAudio } from './audio.js';
 
 const errorText = document.getElementById('error');
 const modeButtons = document.querySelectorAll('[data-mode]');
@@ -51,7 +51,7 @@ let mode = 'draw';
 
 const HINTS = {
   draw: 'Drag anywhere to draw a line. Longer = lower note.',
-  play: 'Click a line to play it, or the background for a random tone.',
+  play: 'Click, or hold and drag to keep playing. Left = low, right = high; lines play their own note.',
 };
 
 const setMode = (next) => {
@@ -60,17 +60,23 @@ const setMode = (next) => {
   hint.textContent = HINTS[mode];
   renderer.domElement.style.cursor = mode === 'draw' ? 'crosshair' : 'default';
   cancelDrawing();
+  stopHolding();
 };
 
 for (const button of modeButtons) {
   button.addEventListener('click', () => setMode(button.dataset.mode));
 }
-clearButton.addEventListener('click', () => lines.clear());
+clearButton.addEventListener('click', () => {
+  stopHolding();
+  lines.clear();
+});
 
 addEventListener('keydown', (e) => {
-  if (e.key === 'd') setMode('draw');
-  else if (e.key === 'p') setMode('play');
-  else if (e.key === 'Escape') cancelDrawing();
+  if (e.repeat) return;
+  const key = e.key.toLowerCase(); // also works with caps lock on
+  if (key === 'd') setMode('draw');
+  else if (key === 'p') setMode('play');
+  else if (key === 'escape') cancelDrawing();
 });
 
 // ------------------------------------------------------------ pointer
@@ -83,6 +89,9 @@ const drawPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // lines live 
 const hitPoint = new THREE.Vector3();
 
 let drawStart = null; // Vector3 while dragging a new line
+let holding = false; // mouse button down in play mode
+let heldLine = null; // the line that is sounding while holding
+let heldNote = null; // the note that is sounding while holding
 
 const updatePointer = (e) => {
   pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
@@ -99,6 +108,33 @@ const cancelDrawing = () => {
 const pulseBackground = (amount) => {
   bg.kick.value = Math.min(1, bg.kick.value + amount);
   bg.level.value = Math.min(1, bg.level.value + amount * 0.1);
+};
+
+const lineUnderPointer = () => raycaster.intersectObjects(lines.meshes())[0]?.object.userData.line ?? null;
+
+// While holding, a note keeps sounding and follows the pointer: over a line
+// it's that line's note, over the background it depends on x (left = low).
+const holdAt = (e) => {
+  const line = lineUnderPointer();
+  const note = line ? line.note : noteForX(e.clientX / innerWidth);
+
+  if (line && line !== heldLine) {
+    lines.hit(line);
+    pulseBackground(1);
+  } else if (!line && note !== heldNote) {
+    pulseBackground(0.3);
+  }
+
+  heldLine = line;
+  heldNote = note;
+  holdNote(note);
+};
+
+const stopHolding = () => {
+  holding = false;
+  heldLine = null;
+  heldNote = null;
+  releaseNote();
 };
 
 // the shader follows the mouse everywhere, also over the toolbar
@@ -118,16 +154,10 @@ canvas.addEventListener('pointerdown', (e) => {
     return;
   }
 
-  const hit = raycaster.intersectObjects(lines.meshes())[0];
-  if (hit) {
-    const line = hit.object.userData.line;
-    lines.hit(line);
-    playNote(line.note);
-    pulseBackground(1);
-  } else {
-    playNote(noteForX(e.clientX / innerWidth));
-    pulseBackground(0.6);
-  }
+  holding = true;
+  canvas.setPointerCapture(e.pointerId); // keep getting events outside the canvas
+
+  holdAt(e);
 });
 
 canvas.addEventListener('pointermove', (e) => {
@@ -137,12 +167,13 @@ canvas.addEventListener('pointermove', (e) => {
     const { length, note, valid } = lines.updatePreview(drawStart, hitPoint);
     hint.textContent = valid ? `Length ${length.toFixed(1)} → ${note}` : 'Keep dragging…';
   } else if (mode === 'play') {
-    const overLine = raycaster.intersectObjects(lines.meshes()).length > 0;
-    canvas.style.cursor = overLine ? 'pointer' : 'default';
+    canvas.style.cursor = lineUnderPointer() ? 'pointer' : 'default';
+    if (holding) holdAt(e);
   }
 });
 
 canvas.addEventListener('pointerup', (e) => {
+  if (holding) stopHolding();
   if (mode !== 'draw' || !drawStart) return;
   updatePointer(e);
 
@@ -156,7 +187,13 @@ canvas.addEventListener('pointerup', (e) => {
   cancelDrawing();
 });
 
-canvas.addEventListener('pointercancel', cancelDrawing);
+canvas.addEventListener('pointercancel', () => {
+  cancelDrawing();
+  stopHolding();
+});
+
+// don't leave a note hanging when you switch tabs or windows mid-hold
+addEventListener('blur', stopHolding);
 
 // ------------------------------------------------------------ resize
 addEventListener('resize', () => {
@@ -186,6 +223,8 @@ renderer.setAnimationLoop((timestamp) => {
   bg.level.value *= Math.exp(-dt * 2);
 
   lines.update(dt);
+  // the line you're holding keeps glowing
+  if (heldLine) heldLine.pulse.value = Math.max(heldLine.pulse.value, 0.5);
 
   renderer.render(scene, camera);
 });

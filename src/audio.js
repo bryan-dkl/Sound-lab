@@ -1,7 +1,5 @@
 // Audio: a simple Tone.js synth that plays pentatonic notes.
 
-import * as Tone from 'tone';
-
 // C major pentatonic, low to high: every note sounds fine together
 export const NOTES = [
   'C3', 'D3', 'E3', 'G3', 'A3',
@@ -9,16 +7,25 @@ export const NOTES = [
   'C5', 'D5', 'E5', 'G5', 'A5',
 ];
 
-// Several notes can ring at once (e.g. clicking lines quickly)
-const synth = new Tone.PolySynth(Tone.Synth, {
-  oscillator: { type: 'triangle' },
-  envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 0.8 },
-}).toDestination();
-synth.volume.value = -10;
+// Tone.js is only loaded on the first click: it creates its AudioContext as
+// soon as it's imported, and doing that before a click gives an
+// "AudioContext was not allowed to start" warning in the console
+let Tone = null;
+let synth = null;
 
 // Browsers only allow sound after a user gesture, so call this on a click
-export const startAudio = () => {
-  return Tone.start();
+export const startAudio = async () => {
+  Tone ??= await import('tone');
+  await Tone.start();
+  if (!synth) {
+    // Several notes can ring at once (e.g. clicking lines quickly)
+    synth = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'triangle' },
+      // sustain is the volume a held note settles on
+      envelope: { attack: 0.01, decay: 0.3, sustain: 0.5, release: 0.8 },
+    }).toDestination();
+    synth.volume.value = -10;
+  }
 };
 
 export const playNote = async (note) => {
@@ -26,6 +33,28 @@ export const playNote = async (note) => {
   synth.triggerAttackRelease(note, '8n');
 };
 
+// ------------------------------------------------------------ held notes
+// One note keeps sounding while the mouse button is down
+let heldNote = null;
+
+export const holdNote = async (note) => {
+  if (note === heldNote) return;
+  const previous = heldNote;
+  heldNote = note;
+
+  await startAudio();
+  if (previous) synth.triggerRelease(previous);
+  // the button may have been released while the audio was starting
+  if (heldNote === note) synth.triggerAttack(note);
+};
+
+export const releaseNote = () => {
+  if (!heldNote) return;
+  synth?.triggerRelease(heldNote);
+  heldNote = null;
+};
+
+// ------------------------------------------------------------ notes
 // x is 0..1 across the screen: left = low, right = high
 export const noteForX = (x) => {
   const index = Math.floor(x * NOTES.length);
