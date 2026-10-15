@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 
 import { createBackground } from './background.js';
 import { createLines } from './lines.js';
+import { createEditor } from './edit.js';
 import { playNote, holdNote, releaseNote, noteForX, startAudio } from './audio.js';
 
 const errorText = document.getElementById('error');
@@ -44,13 +45,16 @@ scene.add(sun);
 
 const bg = createBackground(scene);
 const lines = createLines(scene);
+const editor = createEditor(scene, lines);
 
 // ------------------------------------------------------------ modes
-// "draw": drag to create a line, "play": click lines to hear them
+// "draw": drag to create a line, "edit": move/rotate lines,
+// "play": click lines to hear them
 let mode = 'draw';
 
 const HINTS = {
   draw: 'Drag anywhere to draw a line. Longer = lower note.',
+  edit: 'Drag a line to move it. Drag the ring or scroll to rotate (Shift snaps). Delete removes it.',
   play: 'Click, or hold and drag to keep playing. Left = low, right = high; lines play their own note.',
 };
 
@@ -61,6 +65,7 @@ const setMode = (next) => {
   renderer.domElement.style.cursor = mode === 'draw' ? 'crosshair' : 'default';
   cancelDrawing();
   stopHolding();
+  editor.deselect();
 };
 
 for (const button of modeButtons) {
@@ -68,6 +73,7 @@ for (const button of modeButtons) {
 }
 clearButton.addEventListener('click', () => {
   stopHolding();
+  editor.deselect();
   lines.clear();
 });
 
@@ -75,8 +81,14 @@ addEventListener('keydown', (e) => {
   if (e.repeat) return;
   const key = e.key.toLowerCase(); // also works with caps lock on
   if (key === 'd') setMode('draw');
+  else if (key === 'e') setMode('edit');
   else if (key === 'p') setMode('play');
-  else if (key === 'escape') cancelDrawing();
+  else if (key === 'escape') {
+    cancelDrawing();
+    editor.deselect();
+  } else if ((key === 'delete' || key === 'backspace') && mode === 'edit') {
+    editor.deleteSelected();
+  }
 });
 
 // ------------------------------------------------------------ pointer
@@ -154,6 +166,14 @@ canvas.addEventListener('pointerdown', (e) => {
     return;
   }
 
+  if (mode === 'edit') {
+    if (editor.pointerDown(raycaster, hitPoint)) {
+      canvas.setPointerCapture(e.pointerId);
+      canvas.style.cursor = 'grabbing';
+    }
+    return;
+  }
+
   holding = true;
   canvas.setPointerCapture(e.pointerId); // keep getting events outside the canvas
 
@@ -166,6 +186,8 @@ canvas.addEventListener('pointermove', (e) => {
   if (mode === 'draw' && drawStart) {
     const { length, note, valid } = lines.updatePreview(drawStart, hitPoint);
     hint.textContent = valid ? `Length ${length.toFixed(1)} → ${note}` : 'Keep dragging…';
+  } else if (mode === 'edit') {
+    canvas.style.cursor = editor.pointerMove(raycaster, hitPoint, e.shiftKey);
   } else if (mode === 'play') {
     canvas.style.cursor = lineUnderPointer() ? 'pointer' : 'default';
     if (holding) holdAt(e);
@@ -174,6 +196,10 @@ canvas.addEventListener('pointermove', (e) => {
 
 canvas.addEventListener('pointerup', (e) => {
   if (holding) stopHolding();
+  if (mode === 'edit') {
+    editor.pointerUp();
+    canvas.style.cursor = editor.pointerMove(raycaster, hitPoint, e.shiftKey);
+  }
   if (mode !== 'draw' || !drawStart) return;
   updatePointer(e);
 
@@ -190,7 +216,16 @@ canvas.addEventListener('pointerup', (e) => {
 canvas.addEventListener('pointercancel', () => {
   cancelDrawing();
   stopHolding();
+  editor.pointerUp();
 });
+
+// scroll to rotate the selected line in edit mode
+canvas.addEventListener('wheel', (e) => {
+  if (mode !== 'edit') return;
+  // on macOS, Shift + scroll turns vertical scrolling into horizontal
+  const delta = e.deltaY || e.deltaX;
+  if (editor.wheel(delta, e.shiftKey)) e.preventDefault();
+}, { passive: false });
 
 // don't leave a note hanging when you switch tabs or windows mid-hold
 addEventListener('blur', stopHolding);

@@ -83,14 +83,17 @@ export const createLines = (scene) => {
         const noteIndex = noteIndexForLength(length);
 
         const pulse = uniform(0);
+        const selected = uniform(0);
         const tint = color(tintForNote(noteIndex));
         const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.35, metalness: 0.1 });
         material.colorNode = tint;
-        // glow a little all the time, and flash white-ish when clicked
-        material.emissiveNode = mix(tint, color(0xffffff), pulse.mul(0.5)).mul(pulse.mul(1.5).add(0.25));
+        // glow a little all the time, flash white-ish when clicked,
+        // and glow brighter while selected in edit mode
+        material.emissiveNode = mix(tint, color(0xffffff), pulse.mul(0.5))
+            .mul(pulse.mul(1.5).add(0.25).add(selected.mul(0.6)));
         mesh.material = material;
 
-        const line = { mesh, length, note: NOTES[noteIndex], pulse };
+        const line = { mesh, length, note: NOTES[noteIndex], pulse, selected };
         mesh.userData.line = line;
         group.add(mesh);
         lines.push(line);
@@ -101,12 +104,45 @@ export const createLines = (scene) => {
         line.pulse.value = 1;
     };
 
+    // --------------------------------------------------------- editing
+    // Moving and rotating keep the length, so the note stays the same
+    const setPosition = (line, x, y) => {
+        line.mesh.position.set(x, y, 0);
+    };
+
+    // angle = direction the line points in, 0 = to the right
+    const getAngle = (line) => line.mesh.rotation.z + Math.PI / 2;
+
+    const setAngle = (line, angle) => {
+        line.mesh.rotation.z = angle - Math.PI / 2;
+    };
+
+    // Where one end of the line is, plus some extra distance past it
+    const endPoint = (line, extra = 0) => {
+        const angle = getAngle(line);
+        const reach = line.length / 2 + extra;
+        return new THREE.Vector3(Math.cos(angle) * reach, Math.sin(angle) * reach, 0).add(line.mesh.position);
+    };
+
+    const setSelected = (line, on) => {
+        line.selected.value = on ? 1 : 0;
+    };
+
+    const disposeLine = (line) => {
+        group.remove(line.mesh);
+        line.mesh.geometry.dispose();
+        line.mesh.material.dispose();
+    };
+
+    const remove = (line) => {
+        const index = lines.indexOf(line);
+        if (index === -1) return;
+        disposeLine(line);
+        lines.splice(index, 1);
+    };
+
     const clear = () => {
-        for (const line of lines) {
-            group.remove(line.mesh);
-            line.mesh.geometry.dispose();
-            line.mesh.material.dispose();
-        }
+        for (const line of lines) disposeLine(line);
         lines.length = 0;
     };
 
@@ -126,6 +162,12 @@ export const createLines = (scene) => {
         hidePreview,
         addLine,
         hit,
+        setPosition,
+        getAngle,
+        setAngle,
+        endPoint,
+        setSelected,
+        remove,
         clear,
         update,
     };
