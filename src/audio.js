@@ -55,6 +55,46 @@ export const releaseNote = () => {
   heldNote = null;
 };
 
+// ------------------------------------------------------------ drones
+// A drone is a note that keeps playing until it's stopped (used by the
+// holders). Each one has its own synth, so drones never cut each other off.
+export const createDrone = () => {
+  let drone = null;
+  let wanted = null; // the note it should play, null = silent
+  let playing = false;
+
+  const start = async (note) => {
+    wanted = note;
+    await startAudio();
+    if (wanted !== note) return; // stopped while the audio was starting
+    drone ??= new Tone.Synth({
+      oscillator: { type: 'sine' },
+      envelope: { attack: 0.3, decay: 0.2, sustain: 0.8, release: 1.2 },
+    }).toDestination();
+    drone.volume.value = -14;
+    // already playing: switch to the new note without starting it again
+    if (playing) drone.setNote(note);
+    else drone.triggerAttack(note);
+    playing = true;
+  };
+
+  const stop = () => {
+    wanted = null;
+    playing = false;
+    drone?.triggerRelease();
+  };
+
+  const dispose = () => {
+    stop();
+    // wait for the release to fade out before throwing the synth away
+    const old = drone;
+    drone = null;
+    if (old) setTimeout(() => old.dispose(), 1500);
+  };
+
+  return { start, stop, dispose };
+};
+
 // ------------------------------------------------------------ notes
 // x is 0..1 across the screen: left = low, right = high
 export const noteForX = (x) => {

@@ -9,7 +9,7 @@ import { NOTES, MIN_LENGTH, MAX_LENGTH, noteIndexForLength } from './audio.js';
 
 const RADIUS = 0.12;
 
-const tintForNote = (index) => {
+export const tintForNote = (index) => {
     // low notes = warm red/orange, high notes = cool blue/violet
     return new THREE.Color().setHSL((index / (NOTES.length - 1)) * 0.75, 0.85, 0.55);
 };
@@ -126,6 +126,18 @@ export const createLines = (scene) => {
         return new THREE.Vector3(Math.cos(angle) * reach, Math.sin(angle) * reach, 0).add(line.mesh.position);
     };
 
+    // The line that passes within `reach` of a point, or null
+    const lineAt = (point, reach) => {
+        const segment = new THREE.Line3();
+        const closest = new THREE.Vector3();
+        for (const line of lines) {
+            segment.set(endPoint(line), endPoint(line, -line.length)); // both ends
+            segment.closestPointToPoint(point, true, closest);
+            if (closest.distanceTo(point) <= reach + RADIUS) return line;
+        }
+        return null;
+    };
+
     const setSelected = (line, on) => {
         line.selected.value = on ? 1 : 0;
     };
@@ -168,6 +180,7 @@ export const createLines = (scene) => {
         getAngle,
         setAngle,
         endPoint,
+        lineAt,
         setSelected,
         remove,
         clear,

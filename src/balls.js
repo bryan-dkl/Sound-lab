@@ -1,10 +1,13 @@
 // Balls: 3D spheres with Rapier physics that fall and bounce off the lines.
 // Every line gets a capsule collider that follows its mesh, so lines you
-// move or rotate in edit mode push the balls around too.
+// move or rotate in edit mode push the balls around too. Holders get a box
+// collider, so balls bounce off them as well.
 
 import * as THREE from 'three/webgpu';
 import { uniform, color, mix } from 'three/tsl';
 import RAPIER from '@dimforge/rapier3d-compat';
+
+import { HOLDER_SIZE } from './holders.js';
 
 const BALL_RADIUS = 0.22;
 const LINE_RADIUS = 0.12; // same thickness as the line meshes
@@ -67,6 +70,31 @@ export const createBalls = async (scene) => {
       const { body } = lineBodies.get(line);
       body.setNextKinematicTranslation(line.mesh.position);
       body.setNextKinematicRotation(line.mesh.quaternion);
+    }
+  };
+
+  // ------------------------------------------------------- holder colliders
+  // holder -> body. Kinematic like the lines, so moving a holder in edit
+  // mode pushes balls out of the way
+  const holderBodies = new Map();
+
+  const syncHolders = (holders) => {
+    const current = new Set(holders);
+    for (const [holder, body] of holderBodies) {
+      if (current.has(holder)) continue;
+      world.removeRigidBody(body);
+      holderBodies.delete(holder);
+    }
+    for (const holder of holders) {
+      if (holderBodies.has(holder)) {
+        holderBodies.get(holder).setNextKinematicTranslation(holder.mesh.position);
+        continue;
+      }
+      const { x, y } = holder.mesh.position;
+      const body = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, 0));
+      const half = HOLDER_SIZE / 2;
+      world.createCollider(RAPIER.ColliderDesc.cuboid(half, half, half).setRestitution(0.5), body);
+      holderBodies.set(holder, body);
     }
   };
 
@@ -144,8 +172,9 @@ export const createBalls = async (scene) => {
     onHit(line, THREE.MathUtils.clamp(speed / 12, 0.2, 1));
   };
 
-  const step = (dt, lines, onHit) => {
+  const step = (dt, lines, holders, onHit) => {
     syncLines(lines);
+    syncHolders(holders);
 
     // fixed steps so the physics behaves the same at any frame rate
     accumulator += Math.min(dt, 0.1);
