@@ -28,9 +28,10 @@ export const startAudio = async () => {
   }
 };
 
-export const playNote = async (note) => {
+// velocity is 0..1: how hard the note is played (used for ball hits)
+export const playNote = async (note, velocity = 1) => {
   await startAudio();
-  synth.triggerAttackRelease(note, '8n');
+  synth.triggerAttackRelease(note, '8n', undefined, velocity);
 };
 
 // ------------------------------------------------------------ held notes

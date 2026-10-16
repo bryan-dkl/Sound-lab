@@ -84,7 +84,8 @@ export const createLines = (scene) => {
 
         const pulse = uniform(0);
         const selected = uniform(0);
-        const tint = color(tintForNote(noteIndex));
+        const tintColor = tintForNote(noteIndex);
+        const tint = color(tintColor);
         const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.35, metalness: 0.1 });
         material.colorNode = tint;
         // glow a little all the time, flash white-ish when clicked,
@@ -93,15 +94,16 @@ export const createLines = (scene) => {
             .mul(pulse.mul(1.5).add(0.25).add(selected.mul(0.6)));
         mesh.material = material;
 
-        const line = { mesh, length, note: NOTES[noteIndex], pulse, selected };
+        const line = { mesh, length, note: NOTES[noteIndex], tintColor, pulse, selected };
         mesh.userData.line = line;
         group.add(mesh);
         lines.push(line);
         return line;
     };
 
-    const hit = (line) => {
-        line.pulse.value = 1;
+    // amount 0..1: how strong the flash is (a click = 1, a soft ball hit less)
+    const hit = (line, amount = 1) => {
+        line.pulse.value = Math.max(line.pulse.value, amount);
     };
 
     // --------------------------------------------------------- editing

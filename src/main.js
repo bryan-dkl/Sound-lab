@@ -3,6 +3,7 @@ import * as THREE from 'three/webgpu';
 import { createBackground } from './background.js';
 import { createLines } from './lines.js';
 import { createEditor } from './edit.js';
+import { createBalls } from './balls.js';
 import { playNote, holdNote, releaseNote, noteForX, startAudio } from './audio.js';
 
 const errorText = document.getElementById('error');
@@ -46,15 +47,17 @@ scene.add(sun);
 const bg = createBackground(scene);
 const lines = createLines(scene);
 const editor = createEditor(scene, lines);
+const balls = await createBalls(scene);
 
 // ------------------------------------------------------------ modes
 // "draw": drag to create a line, "edit": move/rotate lines,
-// "play": click lines to hear them
+// "balls": drop balls that bounce off the lines, "play": click lines to hear them
 let mode = 'draw';
 
 const HINTS = {
   draw: 'Drag anywhere to draw a line. Longer = lower note.',
   edit: 'Drag a line to move it. Drag the ring or scroll to rotate (Shift snaps). Delete removes it.',
+  balls: 'Click to drop a ball, hold to keep dropping. Balls play a line\'s note when they hit it.',
   play: 'Click, or hold and drag to keep playing. Left = low, right = high; lines play their own note.',
 };
 
@@ -62,7 +65,7 @@ const setMode = (next) => {
   mode = next;
   for (const button of modeButtons) button.classList.toggle('active', button.dataset.mode === mode);
   hint.textContent = HINTS[mode];
-  renderer.domElement.style.cursor = mode === 'draw' ? 'crosshair' : 'default';
+  renderer.domElement.style.cursor = mode === 'draw' || mode === 'balls' ? 'crosshair' : 'default';
   cancelDrawing();
   stopHolding();
   editor.deselect();
@@ -75,6 +78,7 @@ clearButton.addEventListener('click', () => {
   stopHolding();
   editor.deselect();
   lines.clear();
+  balls.clear();
 });
 
 addEventListener('keydown', (e) => {
@@ -82,6 +86,7 @@ addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase(); // also works with caps lock on
   if (key === 'd') setMode('draw');
   else if (key === 'e') setMode('edit');
+  else if (key === 'b') setMode('balls');
   else if (key === 'p') setMode('play');
   else if (key === 'escape') {
     cancelDrawing();
@@ -104,6 +109,9 @@ let drawStart = null; // Vector3 while dragging a new line
 let holding = false; // mouse button down in play mode
 let heldLine = null; // the line that is sounding while holding
 let heldNote = null; // the note that is sounding while holding
+let dropping = false; // mouse button down in balls mode
+let dropTimer = 0; // time until the next ball while holding
+const DROP_INTERVAL = 0.15; // seconds between balls while holding
 
 const updatePointer = (e) => {
   pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
@@ -146,7 +154,15 @@ const stopHolding = () => {
   holding = false;
   heldLine = null;
   heldNote = null;
+  dropping = false;
   releaseNote();
+};
+
+// drop a ball at the pointer, with a soft note for where it starts
+const dropBall = () => {
+  balls.drop(hitPoint.x, hitPoint.y);
+  playNote(noteForX(mouse.x), 0.4);
+  pulseBackground(0.1);
 };
 
 // the shader follows the mouse everywhere, also over the toolbar
@@ -163,6 +179,14 @@ canvas.addEventListener('pointerdown', (e) => {
   if (mode === 'draw') {
     drawStart = hitPoint.clone();
     canvas.setPointerCapture(e.pointerId);
+    return;
+  }
+
+  if (mode === 'balls') {
+    dropping = true;
+    dropTimer = DROP_INTERVAL;
+    canvas.setPointerCapture(e.pointerId);
+    dropBall();
     return;
   }
 
@@ -195,7 +219,7 @@ canvas.addEventListener('pointermove', (e) => {
 });
 
 canvas.addEventListener('pointerup', (e) => {
-  if (holding) stopHolding();
+  if (holding || dropping) stopHolding();
   if (mode === 'edit') {
     editor.pointerUp();
     canvas.style.cursor = editor.pointerMove(raycaster, hitPoint, e.shiftKey);
@@ -256,6 +280,22 @@ renderer.setAnimationLoop((timestamp) => {
   // click effects fade out
   bg.kick.value *= Math.exp(-dt * 4);
   bg.level.value *= Math.exp(-dt * 2);
+
+  // keep dropping balls while holding in balls mode
+  if (dropping) {
+    dropTimer -= dt;
+    if (dropTimer <= 0) {
+      dropTimer += DROP_INTERVAL;
+      dropBall();
+    }
+  }
+
+  // ball hits flash less than clicks, so lots of balls don't get too flashy
+  balls.step(dt, lines.lines, (line, strength) => {
+    lines.hit(line, 0.25 + strength * 0.35);
+    playNote(line.note, strength);
+    pulseBackground(strength * 0.15);
+  });
 
   lines.update(dt);
   // the line you're holding keeps glowing
