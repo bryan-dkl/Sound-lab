@@ -1,4 +1,5 @@
-// Audio: a simple Tone.js synth that plays pentatonic notes.
+// Audio: Tone.js synths that play pentatonic notes. Every line variant has
+// its own instrument (see INSTRUMENTS), the background uses the classic one.
 
 // C major pentatonic, low to high: every note sounds fine together
 export const NOTES = [
@@ -11,48 +12,117 @@ export const NOTES = [
 // soon as it's imported, and doing that before a click gives an
 // "AudioContext was not allowed to start" warning in the console
 let Tone = null;
-let synth = null;
 
 // Browsers only allow sound after a user gesture, so call this on a click
 export const startAudio = async () => {
   Tone ??= await import('tone');
   await Tone.start();
-  if (!synth) {
-    // Several notes can ring at once (e.g. clicking lines quickly)
-    synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: 'triangle' },
-      // sustain is the volume a held note settles on
-      envelope: { attack: 0.01, decay: 0.3, sustain: 0.5, release: 0.8 },
-    }).toDestination();
-    synth.volume.value = -10;
-  }
 };
 
-// velocity is 0..1: how hard the note is played (used for ball hits)
-export const playNote = async (note, velocity = 1) => {
+// ------------------------------------------------------------ instruments
+// One per line variant. They're all PolySynths, so several notes can ring at
+// once (e.g. clicking lines quickly). `transpose` shifts the note in
+// semitones: 12 = an octave higher. `sustain` in the envelopes is the volume
+// a held note settles on.
+const INSTRUMENTS = {
+  // soft and simple
+  classic: {
+    transpose: 0,
+    create: () => {
+      const synth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: 'triangle' },
+        envelope: { attack: 0.01, decay: 0.3, sustain: 0.5, release: 0.8 },
+      }).toDestination();
+      synth.volume.value = -10;
+      return synth;
+    },
+  },
+
+  // a bell an octave up, ringing out in a reverb
+  glass: {
+    transpose: 12,
+    create: () => {
+      const reverb = new Tone.Reverb({ decay: 3, wet: 0.35 }).toDestination();
+      const synth = new Tone.PolySynth(Tone.FMSynth, {
+        harmonicity: 3.01,
+        modulationIndex: 10,
+        envelope: { attack: 0.002, decay: 1.2, sustain: 0.15, release: 1.6 },
+        modulationEnvelope: { attack: 0.002, decay: 0.4, sustain: 0, release: 0.4 },
+      }).connect(reverb);
+      synth.volume.value = -16;
+      return synth;
+    },
+  },
+
+  // a warm bass an octave down: three detuned saws with the harsh top cut off
+  deep: {
+    transpose: -12,
+    create: () => {
+      const filter = new Tone.Filter({ type: 'lowpass', frequency: 700, Q: 1 }).toDestination();
+      const synth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: 'fatsawtooth', count: 3, spread: 25 },
+        envelope: { attack: 0.01, decay: 0.4, sustain: 0.6, release: 0.6 },
+      }).connect(filter);
+      synth.volume.value = -14;
+      return synth;
+    },
+  },
+
+  // a short pluck that bounces between left and right
+  echo: {
+    transpose: 0,
+    create: () => {
+      const delay = new Tone.PingPongDelay({ delayTime: '8n', feedback: 0.35, wet: 0.35 }).toDestination();
+      const synth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: 'fmsine', harmonicity: 2, modulationIndex: 2 },
+        envelope: { attack: 0.005, decay: 0.3, sustain: 0.1, release: 0.5 },
+      }).connect(delay);
+      synth.volume.value = -10;
+      return synth;
+    },
+  },
+};
+
+// instruments are only built the first time they're played
+const built = {};
+
+const instrumentFor = async (variant) => {
   await startAudio();
-  synth.triggerAttackRelease(note, '8n', undefined, velocity);
+  const instrument = INSTRUMENTS[variant] ?? INSTRUMENTS.classic;
+  built[variant] ??= instrument.create();
+  return { synth: built[variant], transpose: instrument.transpose };
+};
+
+const shift = (note, semitones) => (semitones ? Tone.Frequency(note).transpose(semitones).toNote() : note);
+
+// velocity is 0..1: how hard the note is played (used for ball hits)
+export const playNote = async (note, velocity = 1, variant = 'classic') => {
+  const { synth, transpose } = await instrumentFor(variant);
+  synth.triggerAttackRelease(shift(note, transpose), '8n', undefined, velocity);
 };
 
 // ------------------------------------------------------------ held notes
 // One note keeps sounding while the mouse button is down
-let heldNote = null;
+let held = null; // { note, variant, synth, played }
 
-export const holdNote = async (note) => {
-  if (note === heldNote) return;
-  const previous = heldNote;
-  heldNote = note;
+export const holdNote = async (note, variant = 'classic') => {
+  if (held?.note === note && held.variant === variant) return;
+  releaseNote();
+  const current = { note, variant };
+  held = current;
 
-  await startAudio();
-  if (previous) synth.triggerRelease(previous);
+  const { synth, transpose } = await instrumentFor(variant);
   // the button may have been released while the audio was starting
-  if (heldNote === note) synth.triggerAttack(note);
+  if (held !== current) return;
+  current.synth = synth;
+  current.played = shift(note, transpose);
+  synth.triggerAttack(current.played);
 };
 
 export const releaseNote = () => {
-  if (!heldNote) return;
-  synth?.triggerRelease(heldNote);
-  heldNote = null;
+  if (!held) return;
+  held.synth?.triggerRelease(held.played);
+  held = null;
 };
 
 // ------------------------------------------------------------ drones

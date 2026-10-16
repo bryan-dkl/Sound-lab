@@ -6,9 +6,12 @@ import { createEditor } from './edit.js';
 import { createBalls } from './balls.js';
 import { createHolders, HOLDER_SIZE } from './holders.js';
 import { playNote, holdNote, releaseNote, noteForX, startAudio } from './audio.js';
+import { VARIANTS, variantById } from './variants.js';
 
 const errorText = document.getElementById('error');
 const modeButtons = document.querySelectorAll('[data-mode]');
+const variantButtons = document.querySelectorAll('[data-variant]');
+const lineTypes = document.getElementById('line-types');
 const clearButton = document.getElementById('clear');
 const hint = document.getElementById('hint');
 
@@ -62,7 +65,52 @@ const noteAt = (point) => {
 const editor = createEditor(scene, lines, holders, {
   // a moved holder picks up the note of the spot it was dropped on
   onHolderMoved: (holder) => holders.setNote(holder, noteAt(holder.mesh.position)),
+  // selecting a line shows its variant in the toolbar,
+  // otherwise it shows the variant new lines get
+  onSelect: (item) => {
+    showVariant(item?.type === 'line' ? item.line.variant : lineVariant);
+    updateLineTypes();
+  },
+  // resizing changes the note: let you hear (and read) each new one
+  onResize: (line, noteChanged) => {
+    hint.textContent = `Length ${line.length.toFixed(1)} → ${line.note}`;
+    if (!noteChanged) return;
+    lines.hit(line, 0.4);
+    playNote(line.note, 0.6, line.variant);
+  },
 });
+
+// ------------------------------------------------------------ line variants
+// The variant new lines get. In edit mode, picking one changes the selected line.
+let lineVariant = VARIANTS[0].id;
+
+const showVariant = (id) => {
+  for (const button of variantButtons) button.classList.toggle('active', button.dataset.variant === id);
+};
+
+// the line types only show up when they do something: while drawing,
+// or in edit mode with a line selected
+const updateLineTypes = () => {
+  lineTypes.hidden = !(mode === 'draw' || (mode === 'edit' && editor.selectedLine()));
+};
+
+const pickVariant = (id) => {
+  const selectedLine = mode === 'edit' ? editor.selectedLine() : null;
+  if (selectedLine) {
+    lines.setVariant(selectedLine, id);
+    lines.hit(selectedLine);
+    playNote(selectedLine.note, 0.8, id);
+  } else {
+    lineVariant = id;
+    // a quick sample so you hear what you picked
+    playNote('E4', 0.7, id);
+  }
+  showVariant(id);
+};
+
+for (const button of variantButtons) {
+  button.addEventListener('click', () => pickVariant(button.dataset.variant));
+}
 
 // ------------------------------------------------------------ modes
 // "draw": drag to create a line, "edit": move/rotate lines,
@@ -71,8 +119,8 @@ const editor = createEditor(scene, lines, holders, {
 let mode = 'draw';
 
 const HINTS = {
-  draw: 'Drag anywhere to draw a line. Longer = lower note.',
-  edit: 'Drag a line or holder to move it. Drag the ring or scroll to rotate a line (Shift snaps). Delete removes it.',
+  draw: 'Drag anywhere to draw a line. Longer = lower note. Pick a line type below (1-4).',
+  edit: 'Drag a line or holder to move it. On a selected line, drag the ring (or scroll) to rotate and the diamond to resize. Delete removes it.',
   balls: 'Click to drop a ball, hold to keep dropping. Balls play a line\'s note when they hit it.',
   holders: 'Click to place a holder (on a line it takes that note). Click a holder to turn it on/off, Shift+click removes it.',
   play: 'Click, or hold and drag to keep playing. Left = low, right = high; lines play their own note.',
@@ -86,6 +134,7 @@ const setMode = (next) => {
   cancelDrawing();
   stopHolding();
   editor.deselect();
+  updateLineTypes();
 };
 
 for (const button of modeButtons) {
@@ -106,6 +155,7 @@ addEventListener('keydown', (e) => {
   else if (key === 'e') setMode('edit');
   else if (key === 'b') setMode('balls');
   else if (key === 'h') setMode('holders');
+  else if (!lineTypes.hidden && VARIANTS.some((v) => v.key === key)) pickVariant(VARIANTS.find((v) => v.key === key).id);
   else if (key === 'p') setMode('play');
   else if (key === 'escape') {
     cancelDrawing();
@@ -168,7 +218,7 @@ const holdAt = (e) => {
 
   heldLine = line;
   heldNote = note;
-  holdNote(note);
+  holdNote(note, line ? line.variant : 'classic');
 };
 
 const stopHolding = () => {
@@ -253,8 +303,8 @@ canvas.addEventListener('pointermove', (e) => {
   updatePointer(e);
 
   if (mode === 'draw' && drawStart) {
-    const { length, note, valid } = lines.updatePreview(drawStart, hitPoint);
-    hint.textContent = valid ? `Length ${length.toFixed(1)} → ${note}` : 'Keep dragging…';
+    const { length, note, valid } = lines.updatePreview(drawStart, hitPoint, lineVariant);
+    hint.textContent = valid ? `${variantById(lineVariant).name} · length ${length.toFixed(1)} → ${note}` : 'Keep dragging…';
   } else if (mode === 'edit') {
     canvas.style.cursor = editor.pointerMove(raycaster, hitPoint, e.shiftKey);
   } else if (mode === 'play') {
@@ -273,16 +323,17 @@ canvas.addEventListener('pointerup', (e) => {
   if (holding || dropping) stopHolding();
   if (mode === 'edit') {
     editor.pointerUp();
+    hint.textContent = HINTS.edit;
     canvas.style.cursor = editor.pointerMove(raycaster, hitPoint, e.shiftKey);
   }
   if (mode !== 'draw' || !drawStart) return;
   updatePointer(e);
 
-  const line = lines.addLine(drawStart, hitPoint);
+  const line = lines.addLine(drawStart, hitPoint, lineVariant);
   if (line) {
     // play the new line once so you hear what you made
     lines.hit(line);
-    playNote(line.note);
+    playNote(line.note, 1, line.variant);
     pulseBackground(0.6);
   }
   cancelDrawing();
@@ -317,6 +368,7 @@ const timer = new THREE.Timer();
 timer.connect(document); // pauses correctly when the tab is hidden
 
 setMode('draw');
+showVariant(lineVariant);
 
 renderer.setAnimationLoop((timestamp) => {
   timer.update(timestamp);
@@ -344,7 +396,7 @@ renderer.setAnimationLoop((timestamp) => {
   // ball hits flash less than clicks, so lots of balls don't get too flashy
   balls.step(dt, lines.lines, holders.holders, (line, strength) => {
     lines.hit(line, 0.25 + strength * 0.35);
-    playNote(line.note, strength);
+    playNote(line.note, strength, line.variant);
     pulseBackground(strength * 0.15);
   });
 

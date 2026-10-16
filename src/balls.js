@@ -10,7 +10,6 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { HOLDER_SIZE } from './holders.js';
 
 const BALL_RADIUS = 0.22;
-const LINE_RADIUS = 0.12; // same thickness as the line meshes
 const MAX_BALLS = 60;
 const KILL_Y = -10; // balls below this have fallen off the screen
 const FIXED_DT = 1 / 120;
@@ -39,13 +38,13 @@ export const createBalls = async (scene) => {
     );
     // CapsuleGeometry and Rapier's capsule both point along Y
     const collider = world.createCollider(
-      RAPIER.ColliderDesc.capsule(line.length / 2, LINE_RADIUS)
+      RAPIER.ColliderDesc.capsule(line.length / 2, line.radius) // same thickness as the mesh
         .setRestitution(0.6)
         .setFriction(0.2),
       body,
     );
     lookup.set(collider.handle, { type: 'line', line });
-    lineBodies.set(line, { body, collider });
+    lineBodies.set(line, { body, collider, radius: line.radius, length: line.length });
   };
 
   const removeLineBody = (line) => {
@@ -63,7 +62,10 @@ export const createBalls = async (scene) => {
       if (!current.has(line)) removeLineBody(line);
     }
     for (const line of lines) {
-      if (!lineBodies.has(line)) {
+      // a line that was resized or changed variant needs a new shape: rebuild it
+      const known = lineBodies.get(line);
+      if (known?.radius !== line.radius || known.length !== line.length) {
+        if (lineBodies.has(line)) removeLineBody(line);
         addLineBody(line);
         continue;
       }
