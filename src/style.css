@@ -24,10 +24,10 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 1.5rem;
   text-align: center;
   color: #ff8a8a;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.6;
 }
 
@@ -37,40 +37,40 @@ body {
 
 #toolbar {
   position: fixed;
-  top: 16px;
-  left: 16px;
-  width: 200px;
+  top: 1rem;
+  left: 1rem;
+  width: 12.5rem;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
+  gap: 0.5rem;
+  padding: 0.875rem;
+  border: 0.0625rem solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.875rem;
   background: rgba(8, 9, 18, 0.7);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(0.625rem);
   z-index: 5;
 }
 
 #toolbar .title {
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   opacity: 0.6;
-  margin-bottom: 2px;
+  margin-bottom: 0.125rem;
 }
 
 #toolbar button {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
   width: 100%;
-  padding: 10px 12px;
+  padding: 0.625rem 0.75rem;
   font: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   text-align: left;
   color: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
+  border: 0.0625rem solid rgba(255, 255, 255, 0.15);
+  border-radius: 0.625rem;
   background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
@@ -86,30 +86,30 @@ body {
 }
 
 #toolbar .icon {
-  width: 16px;
+  width: 1rem;
   text-align: center;
 }
 
 #toolbar kbd {
   margin-left: auto;
-  padding: 0 5px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 4px;
-  font-size: 10px;
-  line-height: 16px;
+  padding: 0 0.3125rem;
+  border: 0.0625rem solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.25rem;
+  font-size: 0.625rem;
+  line-height: 1rem;
   opacity: 0.7;
 }
 
 #hint {
-  margin-top: 4px;
-  font-size: 11px;
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
   line-height: 1.5;
   opacity: 0.7;
   min-height: 3em;
 }
 
 /* on phones the toolbar becomes a bar across the top */
-@media (max-width: 600px) {
+@media (max-width: 37.5rem) {
   #toolbar {
     top: 0;
     left: 0;
@@ -117,7 +117,7 @@ body {
     width: auto;
     flex-direction: row;
     flex-wrap: wrap;
-    border-radius: 0 0 14px 14px;
+    border-radius: 0 0 0.875rem 0.875rem;
   }
 
   #toolbar .title,
