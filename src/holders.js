@@ -1,7 +1,5 @@
-// Holders: blocks that hold a note. Placed on a line they take that line's
-// note, anywhere else the note depends on x (left = low). Clicking a holder
-// toggles it: when it's on, its note keeps playing until you turn it off.
-// In edit mode they can be moved (and pick up the note of where they land).
+// holders: blocks that hold a note (a line's note, or by x)
+// click to toggle, when on the note keeps playing
 
 import * as THREE from 'three/webgpu';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -18,12 +16,11 @@ export const createHolders = (scene) => {
 
   const add = (point, note) => {
     const tintColor = tintForNote(NOTES.indexOf(note));
-    const tint = uniform(tintColor.clone()); // a uniform, so the colour can change when moved
-    const on = uniform(0); // eases between 0 (off) and 1 (on)
+    const tint = uniform(tintColor.clone()); // uniform, so it can change colour
+    const on = uniform(0); // eases 0 (off) to 1 (on)
     const selected = uniform(0);
 
-    // off: dark with a faint glow, on: bright and slowly breathing,
-    // selected in edit mode: a white glow on top
+    // off: dark, on: bright and breathing, selected: white glow
     const breathe = sin(time.mul(3)).mul(0.25).add(0.75);
     const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.3, metalness: 0.2 });
     material.colorNode = mix(tint.mul(0.25), tint, on);
@@ -50,7 +47,7 @@ export const createHolders = (scene) => {
     holder.mesh.position.set(x, y, 0);
   };
 
-  // give the holder a new note (and colour); if it's on, it plays the new one
+  // new note and colour, plays it if on
   const setNote = (holder, note) => {
     if (note === holder.note) return;
     holder.note = note;
@@ -83,7 +80,7 @@ export const createHolders = (scene) => {
 
   const update = (dt) => {
     for (const holder of holders) {
-      // fade the glow in and out instead of snapping
+      // fade the glow instead of snapping
       const target = holder.active ? 1 : 0;
       holder.on.value += (target - holder.on.value) * (1 - Math.exp(-dt * 8));
     }

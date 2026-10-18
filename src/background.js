@@ -1,5 +1,4 @@
-// Background: the "Creation" shader (src/shaders/creation.wgsl) drawn behind
-// the scene via scene.backgroundNode.
+// background: the "Creation" shader behind the scene
 
 import { wgslFn, uniform, screenUV, screenSize, vec2, vec4 } from 'three/tsl';
 import * as THREE from 'three/webgpu';
@@ -17,7 +16,7 @@ export const createBackground = (scene) => {
   };
 
   const color = creation({
-    // Shadertoy's fragCoord starts bottom-left, screenUV starts top-left
+    // shadertoy's y starts at the bottom, screenUV's at the top
     fragUV: vec2(screenUV.x, screenUV.y.oneMinus()),
     res: screenSize,
     time: uniforms.time,
@@ -26,7 +25,7 @@ export const createBackground = (scene) => {
     kick: uniforms.kick,
   });
 
-  // kept dim so the lines stand out; clicks only brighten it a little
+  // dim so the lines stand out, clicks brighten it a bit
   const brightness = uniforms.kick.mul(0.1).add(0.3);
   scene.backgroundNode = vec4(color.mul(brightness), 1.0);
 

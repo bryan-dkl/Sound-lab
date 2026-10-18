@@ -1,29 +1,25 @@
-// Audio: Tone.js synths that play pentatonic notes. Every line variant has
-// its own instrument (see INSTRUMENTS), the background uses the classic one.
+// audio: Tone.js synths, one instrument per line variant
 
-// C major pentatonic, low to high: every note sounds fine together
+// c major pentatonic, low to high: always sounds fine
 export const NOTES = [
   'C3', 'D3', 'E3', 'G3', 'A3',
   'C4', 'D4', 'E4', 'G4', 'A4',
   'C5', 'D5', 'E5', 'G5', 'A5',
 ];
 
-// Tone.js is only loaded on the first click: it creates its AudioContext as
-// soon as it's imported, and doing that before a click gives an
-// "AudioContext was not allowed to start" warning in the console
+// tone.js loads on the first click: importing it earlier
+// gives an "AudioContext was not allowed to start" warning
 let Tone = null;
 
-// Browsers only allow sound after a user gesture, so call this on a click
+// browsers only allow sound after a click
 export const startAudio = async () => {
   Tone ??= await import('tone');
   await Tone.start();
 };
 
 // ------------------------------------------------------------ instruments
-// One per line variant. They're all PolySynths, so several notes can ring at
-// once (e.g. clicking lines quickly). `transpose` shifts the note in
-// semitones: 12 = an octave higher. `sustain` in the envelopes is the volume
-// a held note settles on.
+// all PolySynths, so notes can overlap
+// transpose: semitones (12 = octave up), sustain: volume of a held note
 const INSTRUMENTS = {
   // soft and simple
   classic: {
@@ -38,7 +34,7 @@ const INSTRUMENTS = {
     },
   },
 
-  // a bell an octave up, ringing out in a reverb
+  // bell an octave up, with reverb
   glass: {
     transpose: 12,
     create: () => {
@@ -54,7 +50,7 @@ const INSTRUMENTS = {
     },
   },
 
-  // a warm bass an octave down: three detuned saws with the harsh top cut off
+  // bass an octave down: three detuned saws, harsh top filtered off
   deep: {
     transpose: -12,
     create: () => {
@@ -68,7 +64,7 @@ const INSTRUMENTS = {
     },
   },
 
-  // a short pluck that bounces between left and right
+  // short pluck bouncing left and right
   echo: {
     transpose: 0,
     create: () => {
@@ -83,7 +79,7 @@ const INSTRUMENTS = {
   },
 };
 
-// instruments are only built the first time they're played
+// built on first use
 const built = {};
 
 const instrumentFor = async (variant) => {
@@ -95,14 +91,14 @@ const instrumentFor = async (variant) => {
 
 const shift = (note, semitones) => (semitones ? Tone.Frequency(note).transpose(semitones).toNote() : note);
 
-// velocity is 0..1: how hard the note is played (used for ball hits)
+// velocity 0..1: how hard (ball hits)
 export const playNote = async (note, velocity = 1, variant = 'classic') => {
   const { synth, transpose } = await instrumentFor(variant);
   synth.triggerAttackRelease(shift(note, transpose), '8n', undefined, velocity);
 };
 
 // ------------------------------------------------------------ held notes
-// One note keeps sounding while the mouse button is down
+// one note sounds while the mouse is down
 let held = null; // { note, variant, synth, played }
 
 export const holdNote = async (note, variant = 'classic') => {
@@ -112,7 +108,7 @@ export const holdNote = async (note, variant = 'classic') => {
   held = current;
 
   const { synth, transpose } = await instrumentFor(variant);
-  // the button may have been released while the audio was starting
+  // released while audio was starting
   if (held !== current) return;
   current.synth = synth;
   current.played = shift(note, transpose);
@@ -126,23 +122,23 @@ export const releaseNote = () => {
 };
 
 // ------------------------------------------------------------ drones
-// A drone is a note that keeps playing until it's stopped (used by the
-// holders). Each one has its own synth, so drones never cut each other off.
+// drone: a note that plays until stopped (holders)
+// own synth each, so they never cut each other off
 export const createDrone = () => {
   let drone = null;
-  let wanted = null; // the note it should play, null = silent
+  let wanted = null; // note to play, null = silent
   let playing = false;
 
   const start = async (note) => {
     wanted = note;
     await startAudio();
-    if (wanted !== note) return; // stopped while the audio was starting
+    if (wanted !== note) return; // stopped while audio was starting
     drone ??= new Tone.Synth({
       oscillator: { type: 'sine' },
       envelope: { attack: 0.3, decay: 0.2, sustain: 0.8, release: 1.2 },
     }).toDestination();
     drone.volume.value = -14;
-    // already playing: switch to the new note without starting it again
+    // already playing: just switch note
     if (playing) drone.setNote(note);
     else drone.triggerAttack(note);
     playing = true;
@@ -156,7 +152,7 @@ export const createDrone = () => {
 
   const dispose = () => {
     stop();
-    // wait for the release to fade out before throwing the synth away
+    // dispose after the release fades out
     const old = drone;
     drone = null;
     if (old) setTimeout(() => old.dispose(), 1500);
@@ -166,13 +162,13 @@ export const createDrone = () => {
 };
 
 // ------------------------------------------------------------ notes
-// x is 0..1 across the screen: left = low, right = high
+// x 0..1: left = low, right = high
 export const noteForX = (x) => {
   const index = Math.floor(x * NOTES.length);
   return NOTES[Math.min(NOTES.length - 1, Math.max(0, index))];
 };
 
-// Like a string: a longer line plays a lower note
+// like a string: longer = lower
 export const MIN_LENGTH = 0.5;
 export const MAX_LENGTH = 10;
 

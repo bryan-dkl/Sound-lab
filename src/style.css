@@ -51,6 +51,64 @@ body {
   z-index: 5;
 }
 
+#toolbar.collapsed {
+  width: auto;
+}
+
+#toolbar.dragging {
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.5);
+}
+
+/* header = drag handle */
+.toolbar-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+#toolbar.dragging .toolbar-header {
+  cursor: grabbing;
+}
+
+.toolbar-header .grip {
+  font-size: 0.875rem;
+  opacity: 0.4;
+}
+
+.toolbar-header .title {
+  flex: 1;
+}
+
+#toolbar .toolbar-header button {
+  flex: none;
+  width: auto;
+  margin-left: auto;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+#collapse span {
+  display: inline-block;
+  transition: transform 0.2s;
+}
+
+#toolbar.collapsed #collapse span {
+  transform: rotate(-90deg);
+}
+
+#toolbar-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+#toolbar.collapsed #toolbar-body {
+  display: none;
+}
+
 #toolbar .title {
   font-size: 0.6875rem;
   letter-spacing: 0.12em;
@@ -136,19 +194,28 @@ body {
   padding: 0 0.25rem;
 }
 
-/* on phones the toolbar becomes a bar across the top */
+/* phones: toolbar is a bar across the top */
 @media (max-width: 37.5rem) {
   #toolbar {
     top: 0;
     left: 0;
     right: 0;
     width: auto;
-    flex-direction: row;
-    flex-wrap: wrap;
     border-radius: 0 0 0.875rem 0.875rem;
   }
 
-  #toolbar .title,
+  #toolbar-body {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  /* no dragging here, only collapsing */
+  .toolbar-header {
+    cursor: default;
+  }
+
+  .toolbar-header .grip,
+  #toolbar-body .title,
   #toolbar kbd {
     display: none;
   }

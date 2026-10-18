@@ -1,7 +1,5 @@
-// Musical lines: glowing 3D capsules you draw yourself.
-// Each line's length decides its note (longer = lower), and its colour
-// follows the note so you can see the pitch at a glance. Its variant decides
-// how it looks (and in audio.js, how it sounds).
+// lines: glowing 3D capsules you draw
+// length sets the note (longer = lower) and colour, variant sets the look
 
 import * as THREE from 'three/webgpu';
 import { uniform, color, float, mix, uv, time, fract, smoothstep, normalView, positionViewDirection } from 'three/tsl';
@@ -10,12 +8,11 @@ import { NOTES, MIN_LENGTH, MAX_LENGTH, noteIndexForLength } from './audio.js';
 import { variantById } from './variants.js';
 
 export const tintForNote = (index) => {
-    // low notes = warm red/orange, high notes = cool blue/violet
+    // low = warm red, high = cool violet
     return new THREE.Color().setHSL((index / (NOTES.length - 1)) * 0.75, 0.85, 0.55);
 };
 
-// A capsule between two points. CapsuleGeometry points along Y, so it is
-// rotated to match the direction from start to end.
+// capsule between two points, rotated from its default y axis
 const capsuleBetween = (start, end, radius) => {
     const length = start.distanceTo(end);
     const geometry = new THREE.CapsuleGeometry(radius, length, 6, 16);
@@ -24,15 +21,13 @@ const capsuleBetween = (start, end, radius) => {
 };
 
 // ------------------------------------------------------------- materials
-// Every variant flashes white-ish when hit (pulse) and glows brighter when
-// selected in edit mode; on top of that each one has its own look.
-// tint and length are uniforms, so resizing a line doesn't need a new material.
+// all variants flash when hit and glow when selected, plus their own look
+// tint and length are uniforms, so resizing needs no new material
 const createMaterial = (variantId, tint, pulse, selected, length) => {
     const flash = mix(tint, color(0xffffff), pulse.mul(0.5)).mul(pulse.mul(1.5).add(selected.mul(0.6)));
 
     if (variantId === 'glass') {
-        // see-through, with a glow around the edges (fresnel: stronger where the
-        // surface turns away from the camera)
+        // see-through with glowing edges (fresnel: stronger at grazing angles)
         const rim = float(1).sub(normalView.dot(positionViewDirection).abs()).pow(2);
         const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.05, metalness: 0, transparent: true });
         material.colorNode = tint.mul(0.6);
@@ -42,7 +37,7 @@ const createMaterial = (variantId, tint, pulse, selected, length) => {
     }
 
     if (variantId === 'deep') {
-        // dark, heavy metal with a faint glow
+        // dark metal, faint glow
         const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.3, metalness: 0.6 });
         material.colorNode = tint.mul(0.55);
         material.emissiveNode = tint.mul(0.12).add(flash);
@@ -50,7 +45,7 @@ const createMaterial = (variantId, tint, pulse, selected, length) => {
     }
 
     if (variantId === 'echo') {
-        // glowing stripes that slowly run along the line, more on longer lines
+        // stripes running along the line, more on longer lines
         const stripes = fract(uv().y.mul(length.mul(2.5)).sub(time.mul(0.6)));
         const band = smoothstep(0.35, 0.5, stripes).mul(smoothstep(0.65, 0.5, stripes));
         const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.4, metalness: 0.1 });
@@ -59,7 +54,7 @@ const createMaterial = (variantId, tint, pulse, selected, length) => {
         return material;
     }
 
-    // classic: a soft glow all the time
+    // classic: soft constant glow
     const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.35, metalness: 0.1 });
     material.colorNode = tint;
     material.emissiveNode = tint.mul(0.25).add(flash);
@@ -73,7 +68,7 @@ export const createLines = (scene) => {
     const lines = [];
 
     // --------------------------------------------------------- preview line
-    // Shown while dragging, so you see the length and colour before letting go
+    // shows length and colour while dragging
     const previewTint = uniform(new THREE.Color());
     const previewMaterial = new THREE.MeshStandardNodeMaterial({
         roughness: 0.4,
@@ -96,7 +91,7 @@ export const createLines = (scene) => {
         return length;
     };
 
-    // Clamp the end point so a line is never longer than MAX_LENGTH
+    // never longer than MAX_LENGTH
     const clampEnd = (start, end) => {
         const dir = end.clone().sub(start);
         if (dir.length() > MAX_LENGTH) dir.setLength(MAX_LENGTH);
@@ -151,32 +146,32 @@ export const createLines = (scene) => {
         return line;
     };
 
-    // amount 0..1: how strong the flash is (a click = 1, a soft ball hit less)
+    // amount 0..1: flash strength (click = 1, ball hits less)
     const hit = (line, amount = 1) => {
         line.pulse.value = Math.max(line.pulse.value, amount);
     };
 
     // --------------------------------------------------------- editing
-    // Moving and rotating keep the length, so the note stays the same
+    // moving and rotating keep the length, so the note too
     const setPosition = (line, x, y) => {
         line.mesh.position.set(x, y, 0);
     };
 
-    // angle = direction the line points in, 0 = to the right
+    // angle: direction the line points, 0 = right
     const getAngle = (line) => line.mesh.rotation.z + Math.PI / 2;
 
     const setAngle = (line, angle) => {
         line.mesh.rotation.z = angle - Math.PI / 2;
     };
 
-    // Where one end of the line is, plus some extra distance past it
+    // one end, plus extra distance past it
     const endPoint = (line, extra = 0) => {
         const angle = getAngle(line);
         const reach = line.length / 2 + extra;
         return new THREE.Vector3(Math.cos(angle) * reach, Math.sin(angle) * reach, 0).add(line.mesh.position);
     };
 
-    // Swap a line to another variant: new thickness and material, same note
+    // new variant: new thickness and material, same note
     const setVariant = (line, variantId) => {
         const variant = variantById(variantId);
         if (variant.id === line.variant) return;
@@ -189,8 +184,7 @@ export const createLines = (scene) => {
         line.mesh.material = createMaterial(variant.id, line.tint, line.pulse, line.selected, line.lengthUniform);
     };
 
-    // Resize a line while keeping one end where it is (the end with the rotate
-    // ring). The length decides the note, so the note and colour change too.
+    // resize keeping the ring end in place, note and colour follow
     const setLength = (line, length) => {
         length = THREE.MathUtils.clamp(length, MIN_LENGTH, MAX_LENGTH);
         const anchor = endPoint(line);
@@ -200,7 +194,7 @@ export const createLines = (scene) => {
         line.lengthUniform.value = length;
         line.mesh.geometry.dispose();
         line.mesh.geometry = new THREE.CapsuleGeometry(line.radius, length, 6, 16);
-        // the centre sits half a length back from the anchor
+        // centre half a length back from the anchor
         line.mesh.position.set(anchor.x - Math.cos(angle) * length / 2, anchor.y - Math.sin(angle) * length / 2, 0);
 
         const noteIndex = noteIndexForLength(length);
@@ -210,7 +204,7 @@ export const createLines = (scene) => {
         return line.note;
     };
 
-    // The line that passes within `reach` of a point, or null
+    // line within reach of a point, or null
     const lineAt = (point, reach) => {
         const segment = new THREE.Line3();
         const closest = new THREE.Vector3();
@@ -247,7 +241,7 @@ export const createLines = (scene) => {
     const update = (dt) => {
         for (const line of lines) {
             line.pulse.value *= Math.exp(-dt * 5);
-            // a quick wobble outwards when hit
+            // quick wobble outwards when hit
             const s = 1 + line.pulse.value * 0.6;
             line.mesh.scale.set(s, 1, s);
         }

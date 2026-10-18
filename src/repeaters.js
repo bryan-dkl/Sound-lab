@@ -1,7 +1,5 @@
-// Repeaters: swirling portals that drop a ball on the beat. They're tilted so
-// you look up into them, like a hole the balls fall out of. Every repeater
-// follows the same beat, so balls from different repeaters stay in rhythm.
-// The inside of the portal is a Shadertoy port (src/shaders/repeater-portal.wgsl).
+// repeaters: tilted swirling portals dropping balls on a shared beat
+// inside is a shadertoy port (src/shaders/repeater-portal.wgsl)
 
 import * as THREE from 'three/webgpu';
 import { wgslFn, uniform, uv, color, float, mix, dot, vec3, smoothstep } from 'three/tsl';
@@ -12,39 +10,38 @@ const repeaterPortal = wgslFn(portalSource);
 
 export const BPM = 100;
 export const BEAT = 60 / BPM; // seconds per beat
-const RATES = [1, 2, 4]; // a repeater drops a ball every 1, 2 or 4 beats
+const RATES = [1, 2, 4]; // a ball every 1, 2 or 4 beats
 const RADIUS = 0.45;
-const TILT = 1.1; // radians: tipped back so the opening faces down at you
+const TILT = 1.1; // radians, opening faces down at you
 
 export const createRepeaters = (scene) => {
   const repeaters = [];
 
   const ringGeometry = new THREE.TorusGeometry(RADIUS, 0.06, 12, 48);
   const discGeometry = new THREE.CircleGeometry(RADIUS, 48);
-  // a bigger invisible disc that doesn't tilt, so the repeater is easy to click
+  // bigger untilted invisible disc, easy to click
   const hitGeometry = new THREE.CircleGeometry(RADIUS + 0.2, 24);
   const hitMaterial = new THREE.MeshBasicNodeMaterial({ transparent: true, opacity: 0, depthWrite: false });
 
   const add = (point, beat) => {
-    const pulse = uniform(0); // flashes when a ball drops
-    const spin = uniform(0); // swirl angle, only advances while the repeater is on
-    const on = uniform(1); // eases between 0 (paused) and 1 (on)
+    const pulse = uniform(0); // flashes on a drop
+    const spin = uniform(0); // swirl time, only runs while on
+    const on = uniform(1); // eases 0 (paused) to 1 (on)
     const selected = uniform(0);
 
-    const tint = color(0xf59714); // the orange from the portal shader
+    const tint = color(0xf59714); // orange from the portal shader
     const glow = mix(float(0.25), float(1), on).add(pulse.mul(1.5)).add(selected.mul(0.5));
 
-    // rim: a glowing ring
+    // rim: glowing ring
     const ringMaterial = new THREE.MeshStandardNodeMaterial({ roughness: 0.3, metalness: 0.3 });
     ringMaterial.colorNode = tint.mul(0.4);
     ringMaterial.emissiveNode = mix(tint, color(0xffffff), pulse.mul(0.6)).mul(glow);
 
-    // inside: the portal shader. Its time is the repeater's spin, so the
-    // swirl speeds up after a drop and freezes while paused
-    const p = uv().mul(2).sub(1); // -1..1 across the disc, like the shader expects
+    // inside: portal shader, time = spin, so it speeds up
+    // on a drop and freezes while paused
+    const p = uv().mul(2).sub(1); // -1..1 across the disc
     const portal = repeaterPortal({ uv: p, time: spin.mul(0.25) });
-    // kept subtle: dark parts see-through, bright parts toned down,
-    // and fading out towards the rim
+    // subtle: dark parts see-through, toned down, fading at the rim
     const brightness = dot(portal, vec3(0.299, 0.587, 0.114));
     const edge = smoothstep(1, 0.8, p.length());
     const discMaterial = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide });
@@ -74,15 +71,14 @@ export const createRepeaters = (scene) => {
       selected,
       active: true,
       every: 2, // beats between balls
-      startBeat: beat + 1, // first ball on the next beat
+      startBeat: beat + 1, // first ball next beat
     };
     hit.userData.repeater = repeater;
     repeaters.push(repeater);
     return repeater;
   };
 
-  // Called on every beat with the beat number; drop(repeater) for each repeater
-  // whose turn it is
+  // each beat: drop(repeater) for the ones whose turn it is
   const onBeat = (beat, drop) => {
     for (const repeater of repeaters) {
       if (!repeater.active || beat < repeater.startBeat) continue;
@@ -92,7 +88,7 @@ export const createRepeaters = (scene) => {
     }
   };
 
-  // where a ball comes out: just below the middle of the opening
+  // ball spawn: just below the middle
   const dropPoint = (repeater) => repeater.mesh.position.clone().add(new THREE.Vector3(0, -0.15, 0));
 
   const toggle = (repeater, beat) => {
@@ -100,7 +96,7 @@ export const createRepeaters = (scene) => {
     if (repeater.active) repeater.startBeat = beat + 1;
   };
 
-  // step through the rates: direction +1 = slower (more beats), -1 = faster
+  // step the rate: +1 = slower, -1 = faster
   const changeRate = (repeater, direction) => {
     const index = RATES.indexOf(repeater.every) + direction;
     repeater.every = RATES[THREE.MathUtils.clamp(index, 0, RATES.length - 1)];
@@ -137,7 +133,7 @@ export const createRepeaters = (scene) => {
     for (const repeater of repeaters) {
       const target = repeater.active ? 1 : 0;
       repeater.on.value += (target - repeater.on.value) * (1 - Math.exp(-dt * 6));
-      // spins faster right after dropping a ball
+      // spins faster right after a drop
       repeater.spin.value += dt * repeater.on.value * (2 + repeater.pulse.value * 8);
       repeater.pulse.value *= Math.exp(-dt * 5);
     }

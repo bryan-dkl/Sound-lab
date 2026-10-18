@@ -9,15 +9,20 @@ import { createRepeaters, BEAT } from './repeaters.js';
 import { playNote, holdNote, releaseNote, noteForX, startAudio } from './audio.js';
 import { VARIANTS, variantById } from './variants.js';
 import { randomizeScene } from './randomize.js';
+import { setupToolbar } from './toolbar.js';
 
-const errorText = document.getElementById('error');
-const modeButtons = document.querySelectorAll('[data-mode]');
-const variantButtons = document.querySelectorAll('[data-variant]');
-const lineTypes = document.getElementById('line-types');
-const clearButton = document.getElementById('clear');
-const randomizeButton = document.getElementById('randomize');
-const toolbar = document.getElementById('toolbar');
-const hint = document.getElementById('hint');
+const errorText = document.querySelector('#error');
+const lineTypes = document.querySelector('#line-types');
+const clearButton = document.querySelector('#clear');
+const randomizeButton = document.querySelector('#randomize');
+const toolbar = document.querySelector('#toolbar');
+const toolbarUi = setupToolbar(toolbar);
+const hint = document.querySelector('#hint');
+
+// toolbar buttons per mode and variant: #mode-draw, #variant-glass, ...
+const MODES = ['draw', 'edit', 'balls', 'holders', 'repeaters', 'play'];
+const modeButton = (name) => document.querySelector(`#mode-${name}`);
+const variantButton = (id) => document.querySelector(`#variant-${id}`);
 
 const showError = (message) => {
   errorText.textContent = message;
@@ -25,8 +30,8 @@ const showError = (message) => {
 };
 
 // ---------------------------------------------------------------- renderer
-// The background is raw WGSL, which only runs on a real WebGPU device.
-// WebGPURenderer would silently fall back to WebGL2, so check first.
+// the shaders are raw WGSL and need real WebGPU,
+// otherwise WebGPURenderer quietly falls back to WebGL2
 if (!navigator.gpu) {
   showError('WebGPU is not available in this browser. Try a recent Chrome or Edge (or Safari 26+).');
   throw new Error('No WebGPU');
@@ -35,7 +40,7 @@ if (!navigator.gpu) {
 const renderer = new THREE.WebGPURenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
-document.getElementById('app').appendChild(renderer.domElement);
+document.querySelector('#app').appendChild(renderer.domElement);
 await renderer.init();
 
 if (!renderer.backend.isWebGPUBackend) {
@@ -58,8 +63,7 @@ const balls = await createBalls(scene);
 const holders = createHolders(scene);
 const repeaters = createRepeaters(scene);
 
-// The note for a spot: on (or touching) a line it's that line's note,
-// anywhere else it depends on where it is on screen (left = low)
+// note for a spot: a line's note if on one, else by screen x
 const noteAt = (point) => {
   const line = lines.lineAt(point, HOLDER_SIZE / 2);
   if (line) return line.note;
@@ -68,18 +72,17 @@ const noteAt = (point) => {
 };
 
 const editor = createEditor(scene, { line: lines, holder: holders, repeater: repeaters }, {
-  // a moved holder picks up the note of the spot it was dropped on
+  // moved holders take the note of their new spot
   onMoved: (item) => {
     if (item.type === 'holder') holders.setNote(item.target, noteAt(item.target.mesh.position));
   },
-  // selecting a line shows its variant in the toolbar,
-  // otherwise it shows the variant new lines get
+  // show the selected line's variant, else the one for new lines
   onSelect: (item) => {
     showVariant(item?.type === 'line' ? item.target.variant : lineVariant);
     updateLineTypes();
     if (mode === 'edit') hint.textContent = editHint();
   },
-  // resizing changes the note: let you hear (and read) each new one
+  // resizing changes the note: show and play each new one
   onResize: (line, noteChanged) => {
     hint.textContent = `Length ${line.length.toFixed(1)} → ${line.note}`;
     if (!noteChanged) return;
@@ -94,22 +97,21 @@ const editor = createEditor(scene, { line: lines, holder: holders, repeater: rep
 const repeaterHint = (repeater) =>
   `Repeater: a ball every ${repeater.every} beat${repeater.every > 1 ? 's' : ''}. Scroll to change, Delete removes it.`;
 
-// in edit mode the hint is about the selected repeater, if there is one
+// edit hint: about the selected repeater if there is one
 const editHint = () => {
   const item = editor.selectedItem();
   return item?.type === 'repeater' ? repeaterHint(item.target) : HINTS.edit;
 };
 
 // ------------------------------------------------------------ line variants
-// The variant new lines get. In edit mode, picking one changes the selected line.
+// variant for new lines, in edit mode it changes the selected line
 let lineVariant = VARIANTS[0].id;
 
 const showVariant = (id) => {
-  for (const button of variantButtons) button.classList.toggle('active', button.dataset.variant === id);
+  for (const variant of VARIANTS) variantButton(variant.id).classList.toggle('active', variant.id === id);
 };
 
-// the line types only show up when they do something: while drawing,
-// or in edit mode with a line selected
+// line types only show while drawing or with a line selected in edit
 const updateLineTypes = () => {
   lineTypes.hidden = !(mode === 'draw' || (mode === 'edit' && editor.selectedLine()));
 };
@@ -122,21 +124,19 @@ const pickVariant = (id) => {
     playNote(selectedLine.note, 0.8, id);
   } else {
     lineVariant = id;
-    // a quick sample so you hear what you picked
+    // quick sample of the picked sound
     playNote('E4', 0.7, id);
   }
   showVariant(id);
 };
 
-for (const button of variantButtons) {
-  button.addEventListener('click', () => pickVariant(button.dataset.variant));
+for (const variant of VARIANTS) {
+  variantButton(variant.id).addEventListener('click', () => pickVariant(variant.id));
 }
 
 // ------------------------------------------------------------ modes
-// "draw": drag to create a line, "edit": move/rotate lines,
-// "balls": drop balls that bounce off the lines, "holders": place note blocks,
-// "repeaters": place ball droppers, "play": click lines to hear them.
-// Clicking a holder or repeater toggles it in every mode except edit.
+// draw, edit, balls, holders, repeaters, play
+// clicking a holder or repeater toggles it, except in edit
 let mode = 'draw';
 
 const HINTS = {
@@ -150,7 +150,7 @@ const HINTS = {
 
 const setMode = (next) => {
   mode = next;
-  for (const button of modeButtons) button.classList.toggle('active', button.dataset.mode === mode);
+  for (const name of MODES) modeButton(name).classList.toggle('active', name === mode);
   hint.textContent = HINTS[mode];
   renderer.domElement.style.cursor = baseCursor();
   cancelDrawing();
@@ -159,8 +159,8 @@ const setMode = (next) => {
   updateLineTypes();
 };
 
-for (const button of modeButtons) {
-  button.addEventListener('click', () => setMode(button.dataset.mode));
+for (const name of MODES) {
+  modeButton(name).addEventListener('click', () => setMode(name));
 }
 const clearAll = () => {
   stopHolding();
@@ -171,18 +171,21 @@ const clearAll = () => {
   repeaters.clear();
 };
 
-// The part of the z = 0 plane you can see, minus the toolbar
+// visible part of z = 0, minus the toolbar
 const visibleBounds = () => {
   const halfHeight = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.position.z;
   const halfWidth = halfHeight * camera.aspect;
   const bounds = { left: -halfWidth, right: halfWidth, top: halfHeight, bottom: -halfHeight };
 
+  // only keep clear of the toolbar when it's against an edge
   const rect = toolbar.getBoundingClientRect();
   if (rect.width > innerWidth / 2) {
-    // on phones the toolbar is a bar across the top
+    // phones: bar across the top
     bounds.top -= (rect.bottom / innerHeight) * 2 * halfHeight;
-  } else {
+  } else if (rect.left < innerWidth / 4) {
     bounds.left += (rect.right / innerWidth) * 2 * halfWidth;
+  } else if (rect.right > (innerWidth * 3) / 4) {
+    bounds.right -= ((innerWidth - rect.left) / innerWidth) * 2 * halfWidth;
   }
   return bounds;
 };
@@ -201,12 +204,13 @@ randomizeButton.addEventListener('click', () => {
 
 addEventListener('keydown', (e) => {
   if (e.repeat) return;
-  const key = e.key.toLowerCase(); // also works with caps lock on
+  const key = e.key.toLowerCase(); // works with caps lock too
   if (key === 'd') setMode('draw');
   else if (key === 'e') setMode('edit');
   else if (key === 'b') setMode('balls');
   else if (key === 'h') setMode('holders');
   else if (key === 'r') setMode('repeaters');
+  else if (key === 'm') toolbarUi.toggle();
   else if (key === 'g') {
     startAudio();
     randomize();
@@ -230,13 +234,13 @@ const pointer = new THREE.Vector2(); // -1..1
 const drawPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // lines live on z = 0
 const hitPoint = new THREE.Vector3();
 
-let drawStart = null; // Vector3 while dragging a new line
-let holding = false; // mouse button down in play mode
-let heldLine = null; // the line that is sounding while holding
-let heldNote = null; // the note that is sounding while holding
-let dropping = false; // mouse button down in balls mode
-let dropTimer = 0; // time until the next ball while holding
-const DROP_INTERVAL = 0.15; // seconds between balls while holding
+let drawStart = null; // a Vector3 while drawing
+let holding = false; // mouse down in play mode
+let heldLine = null; // line sounding while holding
+let heldNote = null; // note sounding while holding
+let dropping = false; // mouse down in balls mode
+let dropTimer = 0; // time until the next ball
+const DROP_INTERVAL = 0.15; // seconds between balls
 
 const updatePointer = (e) => {
   pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
@@ -261,8 +265,8 @@ const holderUnderPointer = () => raycaster.intersectObjects(holders.meshes())[0]
 
 const lineUnderPointer = () => raycaster.intersectObjects(lines.meshes())[0]?.object.userData.line ?? null;
 
-// While holding, a note keeps sounding and follows the pointer: over a line
-// it's that line's note, over the background it depends on x (left = low).
+// holding keeps a note going that follows the pointer:
+// a line's note on a line, else by x (left = low)
 const holdAt = (e) => {
   const line = lineUnderPointer();
   const note = line ? line.note : noteForX(e.clientX / innerWidth);
@@ -287,29 +291,28 @@ const stopHolding = () => {
   releaseNote();
 };
 
-// drop a ball at the pointer, with a soft note for where it starts
+// ball at the pointer, soft note for where it starts
 const dropBall = () => {
   balls.drop(hitPoint.x, hitPoint.y);
   playNote(noteForX(mouse.x), 0.4);
   pulseBackground(0.1);
 };
 
-// the shader follows the mouse everywhere, also over the toolbar
+// shader follows the mouse everywhere, also over the toolbar
 addEventListener('pointermove', (e) => {
   mouse.set(e.clientX / innerWidth, 1 - e.clientY / innerHeight);
 });
 
 const canvas = renderer.domElement;
 
-// the cursor for each mode when you're not over anything special
+// default cursor per mode
 const baseCursor = () => (mode === 'edit' || mode === 'play' ? 'default' : 'crosshair');
 
 canvas.addEventListener('pointerdown', (e) => {
   startAudio();
   updatePointer(e);
 
-  // holders can be switched on and off in every mode except edit,
-  // where they're moved instead
+  // holders toggle in every mode, edit moves them instead
   const holder = mode === 'edit' ? null : holderUnderPointer();
   if (holder) {
     if (mode === 'holders' && e.shiftKey) {
@@ -321,7 +324,7 @@ canvas.addEventListener('pointerdown', (e) => {
     return;
   }
 
-  // same for repeaters: pause or start them
+  // same for repeaters: pause or start
   const repeater = mode === 'edit' ? null : repeaterUnderPointer();
   if (repeater) {
     if (mode === 'repeaters' && e.shiftKey) repeaters.remove(repeater);
@@ -366,7 +369,7 @@ canvas.addEventListener('pointerdown', (e) => {
   }
 
   holding = true;
-  canvas.setPointerCapture(e.pointerId); // keep getting events outside the canvas
+  canvas.setPointerCapture(e.pointerId); // keep events outside the canvas
 
   holdAt(e);
 });
@@ -386,7 +389,7 @@ canvas.addEventListener('pointermove', (e) => {
     canvas.style.cursor = baseCursor();
   }
 
-  // show that a holder or repeater can be clicked, unless you're busy dragging something
+  // pointer cursor on holders and repeaters, unless dragging
   const busy = mode === 'edit' || drawStart || holding || dropping;
   if (!busy && (holderUnderPointer() || repeaterUnderPointer())) canvas.style.cursor = 'pointer';
 });
@@ -403,7 +406,7 @@ canvas.addEventListener('pointerup', (e) => {
 
   const line = lines.addLine(drawStart, hitPoint, lineVariant);
   if (line) {
-    // play the new line once so you hear what you made
+    // play the new line once
     lines.hit(line);
     playNote(line.note, 1, line.variant);
     pulseBackground(0.6);
@@ -417,15 +420,15 @@ canvas.addEventListener('pointercancel', () => {
   editor.pointerUp();
 });
 
-// scroll to rotate the selected line in edit mode
+// scroll in edit mode: rotate line or change repeater rate
 canvas.addEventListener('wheel', (e) => {
   if (mode !== 'edit') return;
-  // on macOS, Shift + scroll turns vertical scrolling into horizontal
+  // macOS turns Shift + scroll horizontal
   const delta = e.deltaY || e.deltaX;
   if (editor.wheel(delta, e.shiftKey)) e.preventDefault();
 }, { passive: false });
 
-// don't leave a note hanging when you switch tabs or windows mid-hold
+// no hanging notes when switching tabs or windows
 addEventListener('blur', stopHolding);
 
 // ------------------------------------------------------------ resize
@@ -437,13 +440,13 @@ addEventListener('resize', () => {
 
 // ------------------------------------------------------------ main loop
 const timer = new THREE.Timer();
-timer.connect(document); // pauses correctly when the tab is hidden
+timer.connect(document); // pauses when the tab is hidden
 
-// the beat every repeater follows
+// shared beat for all repeaters
 let beat = 0;
 let beatTime = 0;
 
-// a ball out of a repeater, with a soft note for where it comes out
+// ball out of a repeater, soft note for where it comes out
 const dropFromRepeater = (repeater) => {
   const point = repeaters.dropPoint(repeater);
   balls.drop(point.x, point.y);
@@ -460,15 +463,15 @@ renderer.setAnimationLoop((timestamp) => {
 
   bg.time.value = timer.getElapsed();
 
-  // the shader centre eases towards the mouse
+  // shader centre eases to the mouse
   smoothMouse.lerp(mouse, 1 - Math.exp(-dt * 4));
   bg.center.value.copy(smoothMouse);
 
-  // click effects fade out
+  // click effects fade
   bg.kick.value *= Math.exp(-dt * 4);
   bg.level.value *= Math.exp(-dt * 2);
 
-  // keep dropping balls while holding in balls mode
+  // keep dropping while holding in balls mode
   if (dropping) {
     dropTimer -= dt;
     if (dropTimer <= 0) {
@@ -477,7 +480,7 @@ renderer.setAnimationLoop((timestamp) => {
     }
   }
 
-  // repeaters drop their balls on the beat
+  // repeaters drop on the beat
   beatTime += dt;
   while (beatTime >= BEAT) {
     beatTime -= BEAT;
@@ -485,7 +488,7 @@ renderer.setAnimationLoop((timestamp) => {
     repeaters.onBeat(beat, dropFromRepeater);
   }
 
-  // ball hits flash less than clicks, so lots of balls don't get too flashy
+  // ball hits flash less than clicks, so it stays calm
   balls.step(dt, lines.lines, holders.holders, (line, strength) => {
     lines.hit(line, 0.25 + strength * 0.35);
     playNote(line.note, strength, line.variant);
@@ -495,7 +498,7 @@ renderer.setAnimationLoop((timestamp) => {
   lines.update(dt);
   holders.update(dt);
   repeaters.update(dt);
-  // the line you're holding keeps glowing
+  // held line keeps glowing
   if (heldLine) heldLine.pulse.value = Math.max(heldLine.pulse.value, 0.5);
 
   renderer.render(scene, camera);

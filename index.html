@@ -2,41 +2,66 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WebGPU Three.js Challenge</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Soundlab: draw lines that play notes, then let physics balls make music with them. Built with Three.js, WebGPU and Tone.js.">
+    <title>Soundlab</title>
     <link rel="icon"
-        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E" />
-    <link rel="stylesheet" href="/src/style.css" />
+        href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="/src/style.css">
 </head>
 
 <body>
-    <div id="app"></div>
 
-    <nav id="toolbar" aria-label="Tools">
-        <p class="title">Musical lines</p>
-        <button type="button" data-mode="draw"><span class="icon">✎</span> Draw lines <kbd>D</kbd></button>
-        <button type="button" data-mode="edit"><span class="icon">↻</span> Edit <kbd>E</kbd></button>
-        <button type="button" data-mode="balls"><span class="icon">●</span> Drop balls <kbd>B</kbd></button>
-        <button type="button" data-mode="holders"><span class="icon">■</span> Holders <kbd>H</kbd></button>
-        <button type="button" data-mode="repeaters"><span class="icon">◎</span> Repeaters <kbd>R</kbd></button>
-        <button type="button" data-mode="play"><span class="icon">♪</span> Play <kbd>P</kbd></button>
-        <button type="button" id="clear"><span class="icon">✕</span> Clear all</button>
-        <button type="button" id="randomize"><span class="icon">✦</span> Randomize <kbd>G</kbd></button>
+    <main id="app"></main>
 
-        <!-- only shown while drawing, or with a line selected in edit mode -->
-        <div id="line-types" hidden>
-            <p class="title">Line type</p>
-            <div class="variants">
-                <button type="button" data-variant="classic">Classic <kbd>1</kbd></button>
-                <button type="button" data-variant="glass">Glass <kbd>2</kbd></button>
-                <button type="button" data-variant="deep">Deep <kbd>3</kbd></button>
-                <button type="button" data-variant="echo">Echo <kbd>4</kbd></button>
-            </div>
+    <aside id="toolbar" aria-labelledby="toolbar-title">
+
+        <header class="toolbar-header" title="Drag to move, double-click to collapse">
+            <span class="grip" aria-hidden="true">⠿</span>
+            <h1 class="title" id="toolbar-title">Soundlab</h1>
+            <button type="button" id="collapse" aria-controls="toolbar-body" aria-expanded="true"
+                aria-label="Collapse menu" aria-keyshortcuts="M"><span aria-hidden="true">▾</span></button>
+        </header>
+
+        <div id="toolbar-body">
+            <button type="button" class="mode" id="mode-draw" aria-pressed="false" aria-keyshortcuts="D"><span
+                    class="icon" aria-hidden="true">✎</span> Draw lines <kbd>D</kbd></button>
+            <button type="button" class="mode" id="mode-edit" aria-pressed="false" aria-keyshortcuts="E"><span
+                    class="icon" aria-hidden="true">↻</span> Edit <kbd>E</kbd></button>
+            <button type="button" class="mode" id="mode-balls" aria-pressed="false" aria-keyshortcuts="B"><span
+                    class="icon" aria-hidden="true">●</span> Drop balls <kbd>B</kbd></button>
+            <button type="button" class="mode" id="mode-holders" aria-pressed="false" aria-keyshortcuts="H"><span
+                    class="icon" aria-hidden="true">■</span> Holders <kbd>H</kbd></button>
+            <button type="button" class="mode" id="mode-repeaters" aria-pressed="false" aria-keyshortcuts="R"><span
+                    class="icon" aria-hidden="true">◎</span> Repeaters <kbd>R</kbd></button>
+            <button type="button" class="mode" id="mode-play" aria-pressed="false" aria-keyshortcuts="P"><span
+                    class="icon" aria-hidden="true">♪</span> Play <kbd>P</kbd></button>
+            <button type="button" id="randomize" aria-keyshortcuts="G"><span class="icon" aria-hidden="true">✦</span>
+                Randomize <kbd>G</kbd></button>
+
+            <!-- only while drawing, or with a line selected in edit -->
+            <section id="line-types" aria-labelledby="line-types-title" hidden>
+                <h2 class="title" id="line-types-title">Line type</h2>
+                <div class="variants">
+                    <button type="button" class="variant" id="variant-classic" aria-pressed="false"
+                        aria-keyshortcuts="1">Classic <kbd>1</kbd></button>
+                    <button type="button" class="variant" id="variant-glass" aria-pressed="false"
+                        aria-keyshortcuts="2">Glass <kbd>2</kbd></button>
+                    <button type="button" class="variant" id="variant-deep" aria-pressed="false"
+                        aria-keyshortcuts="3">Deep <kbd>3</kbd></button>
+                    <button type="button" class="variant" id="variant-echo" aria-pressed="false"
+                        aria-keyshortcuts="4">Echo <kbd>4</kbd></button>
+                </div>
+            </section>
+
+            <p id="hint" aria-live="polite"></p>
+            <button type="button" id="clear"><span class="icon" aria-hidden="true">✕</span> Clear all</button>
         </div>
-        <p id="hint"></p>
-    </nav>
-    <p id="error" class="error" hidden></p>
+    </aside>
+
+    <p id="error" class="error" role="alert" hidden></p>
 
     <script type="module" src="/src/main.js"></script>
 </body>
