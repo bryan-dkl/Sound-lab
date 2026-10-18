@@ -8,12 +8,15 @@ import { createHolders, HOLDER_SIZE } from './holders.js';
 import { createRepeaters, BEAT } from './repeaters.js';
 import { playNote, holdNote, releaseNote, noteForX, startAudio } from './audio.js';
 import { VARIANTS, variantById } from './variants.js';
+import { randomizeScene } from './randomize.js';
 
 const errorText = document.getElementById('error');
 const modeButtons = document.querySelectorAll('[data-mode]');
 const variantButtons = document.querySelectorAll('[data-variant]');
 const lineTypes = document.getElementById('line-types');
 const clearButton = document.getElementById('clear');
+const randomizeButton = document.getElementById('randomize');
+const toolbar = document.getElementById('toolbar');
 const hint = document.getElementById('hint');
 
 const showError = (message) => {
@@ -159,13 +162,41 @@ const setMode = (next) => {
 for (const button of modeButtons) {
   button.addEventListener('click', () => setMode(button.dataset.mode));
 }
-clearButton.addEventListener('click', () => {
+const clearAll = () => {
   stopHolding();
   editor.deselect();
   lines.clear();
   balls.clear();
   holders.clear();
   repeaters.clear();
+};
+
+// The part of the z = 0 plane you can see, minus the toolbar
+const visibleBounds = () => {
+  const halfHeight = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.position.z;
+  const halfWidth = halfHeight * camera.aspect;
+  const bounds = { left: -halfWidth, right: halfWidth, top: halfHeight, bottom: -halfHeight };
+
+  const rect = toolbar.getBoundingClientRect();
+  if (rect.width > innerWidth / 2) {
+    // on phones the toolbar is a bar across the top
+    bounds.top -= (rect.bottom / innerHeight) * 2 * halfHeight;
+  } else {
+    bounds.left += (rect.right / innerWidth) * 2 * halfWidth;
+  }
+  return bounds;
+};
+
+const randomize = () => {
+  clearAll();
+  randomizeScene({ lines, holders, repeaters, balls, bounds: visibleBounds(), beat, noteAt });
+  pulseBackground(0.6);
+};
+
+clearButton.addEventListener('click', clearAll);
+randomizeButton.addEventListener('click', () => {
+  startAudio(); // the holder that starts on needs sound
+  randomize();
 });
 
 addEventListener('keydown', (e) => {
@@ -176,6 +207,10 @@ addEventListener('keydown', (e) => {
   else if (key === 'b') setMode('balls');
   else if (key === 'h') setMode('holders');
   else if (key === 'r') setMode('repeaters');
+  else if (key === 'g') {
+    startAudio();
+    randomize();
+  }
   else if (!lineTypes.hidden && VARIANTS.some((v) => v.key === key)) pickVariant(VARIANTS.find((v) => v.key === key).id);
   else if (key === 'p') setMode('play');
   else if (key === 'escape') {
