@@ -1,30 +1,42 @@
-// Edit mode: select a line or a holder and drag it somewhere else.
+// Edit mode: select a line, holder or repeater and drag it somewhere else.
 // Lines can also be rotated with the ring at one end (or the scroll wheel,
 // hold Shift to snap the angle) and resized with the diamond at the other
-// end, which changes their note. Delete removes what's selected.
+// end, which changes their note. Scrolling on a repeater changes how often it
+// drops a ball. Delete removes what's selected.
 
 import * as THREE from 'three/webgpu';
 
 const HANDLE_GAP = 0.45; // distance between the end of the line and the handle
 const SNAP = Math.PI / 12; // 15 degrees
+const SCROLL_STEP = 120; // scroll distance per repeater rate step
 
-// onHolderMoved(holder) is called when a holder is dropped somewhere new,
-// so it can pick up the note of its new spot. onSelect(item) is called when
-// the selection changes (item is null when nothing is selected).
-// onResize(line, noteChanged) is called while a line is being resized.
-export const createEditor = (scene, lines, holders, { onHolderMoved, onSelect, onResize }) => {
-    let selected = null; // { type: 'line', line } or { type: 'holder', holder }
+// collections: { line: lines, holder: holders, repeater: repeaters }. Each one
+// has meshes(), setPosition(), setSelected() and remove(), and its meshes
+// carry the item in userData under the same name (userData.line, ...).
+//
+// Callbacks:
+// onMoved(item) when something was dragged somewhere new,
+// onSelect(item) when the selection changes (null = nothing selected),
+// onResize(line, noteChanged) while a line is being resized,
+// onRate(repeater) when a repeater's rate changed.
+export const createEditor = (scene, collections, { onMoved, onSelect, onResize, onRate }) => {
+    const { line: lines } = collections;
+    // picked in this order: holders and repeaters sit on top of lines
+    const PICK_ORDER = ['holder', 'repeater', 'line'];
+
+    let selected = null; // { type: 'line' | 'holder' | 'repeater', target }
     let drag = null; // { type: 'move', offset, moved }, { type: 'rotate' } or { type: 'resize' }
     // the unsnapped angle, so small scroll steps add up even while snapping
     let freeAngle = 0;
+    let scrolled = 0; // scroll distance collected for repeater rate steps
 
-    const selectedLine = () => (selected?.type === 'line' ? selected.line : null);
-    const meshOf = (item) => (item.type === 'line' ? item.line.mesh : item.holder.mesh);
+    const selectedOf = (type) => (selected?.type === type ? selected.target : null);
+    const selectedLine = () => selectedOf('line');
 
     // --------------------------------------------------------- handles
     // Past the ends of the selected line: a ring to rotate it and a diamond to
     // resize it. Each has a bigger invisible sphere around it so it's easy to
-    // grab. Holders don't rotate or resize, so they don't get handles.
+    // grab. Holders and repeaters don't rotate or resize, so they don't get any.
     const handleMaterial = new THREE.MeshBasicNodeMaterial({ color: 0xffffff });
     const hitMaterial = new THREE.MeshBasicNodeMaterial({ transparent: true, opacity: 0, depthWrite: false });
 
@@ -60,16 +72,12 @@ export const createEditor = (scene, lines, holders, { onHolderMoved, onSelect, o
     const over = (handle, raycaster) => selectedLine() !== null && raycaster.intersectObject(handle.hit).length > 0;
 
     // --------------------------------------------------------- selection
-    const highlight = (on) => {
-        if (selected?.type === 'line') lines.setSelected(selected.line, on);
-        if (selected?.type === 'holder') holders.setSelected(selected.holder, on);
-    };
-
     const select = (item) => {
-        highlight(false);
+        if (selected) collections[selected.type].setSelected(selected.target, false);
         selected = item;
-        highlight(true);
-        if (selected?.type === 'line') freeAngle = lines.getAngle(selected.line);
+        if (selected) collections[selected.type].setSelected(selected.target, true);
+        if (selected?.type === 'line') freeAngle = lines.getAngle(selected.target);
+        scrolled = 0;
         updateHandles();
         onSelect?.(selected);
     };
@@ -80,8 +88,7 @@ export const createEditor = (scene, lines, holders, { onHolderMoved, onSelect, o
         if (!selected) return;
         const item = selected;
         deselect();
-        if (item.type === 'line') lines.remove(item.line);
-        else holders.remove(item.holder);
+        collections[item.type].remove(item.target);
     };
 
     const rotateTo = (angle, snap) => {
@@ -103,12 +110,11 @@ export const createEditor = (scene, lines, holders, { onHolderMoved, onSelect, o
         onResize?.(line, line.note !== before);
     };
 
-    // What's under the pointer: holders first, since they sit on top of lines
     const itemUnderPointer = (raycaster) => {
-        const holder = raycaster.intersectObjects(holders.meshes())[0]?.object.userData.holder;
-        if (holder) return { type: 'holder', holder };
-        const line = raycaster.intersectObjects(lines.meshes())[0]?.object.userData.line;
-        if (line) return { type: 'line', line };
+        for (const type of PICK_ORDER) {
+            const target = raycaster.intersectObjects(collections[type].meshes())[0]?.object.userData[type];
+            if (target) return { type, target };
+        }
         return null;
     };
 
@@ -132,17 +138,14 @@ export const createEditor = (scene, lines, holders, { onHolderMoved, onSelect, o
         }
 
         select(item);
-        if (item.type === 'line') lines.hit(item.line);
-        drag = { type: 'move', offset: meshOf(item).position.clone().sub(point), moved: false };
+        if (item.type === 'line') lines.hit(item.target);
+        drag = { type: 'move', offset: item.target.mesh.position.clone().sub(point), moved: false };
         return true;
     };
 
     const pointerMove = (raycaster, point, shiftKey) => {
         if (drag?.type === 'move') {
-            const x = point.x + drag.offset.x;
-            const y = point.y + drag.offset.y;
-            if (selected.type === 'line') lines.setPosition(selected.line, x, y);
-            else holders.setPosition(selected.holder, x, y);
+            collections[selected.type].setPosition(selected.target, point.x + drag.offset.x, point.y + drag.offset.y);
             drag.moved = true;
             updateHandles();
             return 'grabbing';
@@ -166,12 +169,23 @@ export const createEditor = (scene, lines, holders, { onHolderMoved, onSelect, o
     };
 
     const pointerUp = () => {
-        if (drag?.moved && selected?.type === 'holder') onHolderMoved(selected.holder);
+        if (drag?.moved) onMoved?.(selected);
         drag = null;
     };
 
-    // scroll wheel rotates the selected line a bit
+    // scroll wheel: rotates the selected line, or changes a repeater's rate
     const wheel = (deltaY, shiftKey) => {
+        const repeater = selectedOf('repeater');
+        if (repeater) {
+            scrolled += deltaY;
+            if (Math.abs(scrolled) >= SCROLL_STEP) {
+                collections.repeater.changeRate(repeater, Math.sign(scrolled));
+                scrolled = 0;
+                onRate?.(repeater);
+            }
+            return true;
+        }
+
         if (!selectedLine()) return false;
         rotateTo(freeAngle - deltaY * 0.003, shiftKey);
         return true;
@@ -185,5 +199,6 @@ export const createEditor = (scene, lines, holders, { onHolderMoved, onSelect, o
         deselect,
         deleteSelected,
         selectedLine,
+        selectedItem: () => selected,
     };
 };

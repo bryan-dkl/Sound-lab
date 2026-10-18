@@ -5,6 +5,7 @@ import { createLines } from './lines.js';
 import { createEditor } from './edit.js';
 import { createBalls } from './balls.js';
 import { createHolders, HOLDER_SIZE } from './holders.js';
+import { createRepeaters, BEAT } from './repeaters.js';
 import { playNote, holdNote, releaseNote, noteForX, startAudio } from './audio.js';
 import { VARIANTS, variantById } from './variants.js';
 
@@ -52,6 +53,7 @@ const bg = createBackground(scene);
 const lines = createLines(scene);
 const balls = await createBalls(scene);
 const holders = createHolders(scene);
+const repeaters = createRepeaters(scene);
 
 // The note for a spot: on (or touching) a line it's that line's note,
 // anywhere else it depends on where it is on screen (left = low)
@@ -62,14 +64,17 @@ const noteAt = (point) => {
   return noteForX(screenX);
 };
 
-const editor = createEditor(scene, lines, holders, {
+const editor = createEditor(scene, { line: lines, holder: holders, repeater: repeaters }, {
   // a moved holder picks up the note of the spot it was dropped on
-  onHolderMoved: (holder) => holders.setNote(holder, noteAt(holder.mesh.position)),
+  onMoved: (item) => {
+    if (item.type === 'holder') holders.setNote(item.target, noteAt(item.target.mesh.position));
+  },
   // selecting a line shows its variant in the toolbar,
   // otherwise it shows the variant new lines get
   onSelect: (item) => {
-    showVariant(item?.type === 'line' ? item.line.variant : lineVariant);
+    showVariant(item?.type === 'line' ? item.target.variant : lineVariant);
     updateLineTypes();
+    if (mode === 'edit') hint.textContent = editHint();
   },
   // resizing changes the note: let you hear (and read) each new one
   onResize: (line, noteChanged) => {
@@ -78,7 +83,19 @@ const editor = createEditor(scene, lines, holders, {
     lines.hit(line, 0.4);
     playNote(line.note, 0.6, line.variant);
   },
+  onRate: (repeater) => {
+    hint.textContent = repeaterHint(repeater);
+  },
 });
+
+const repeaterHint = (repeater) =>
+  `Repeater: a ball every ${repeater.every} beat${repeater.every > 1 ? 's' : ''}. Scroll to change, Delete removes it.`;
+
+// in edit mode the hint is about the selected repeater, if there is one
+const editHint = () => {
+  const item = editor.selectedItem();
+  return item?.type === 'repeater' ? repeaterHint(item.target) : HINTS.edit;
+};
 
 // ------------------------------------------------------------ line variants
 // The variant new lines get. In edit mode, picking one changes the selected line.
@@ -115,14 +132,16 @@ for (const button of variantButtons) {
 // ------------------------------------------------------------ modes
 // "draw": drag to create a line, "edit": move/rotate lines,
 // "balls": drop balls that bounce off the lines, "holders": place note blocks,
-// "play": click lines to hear them. Clicking a holder toggles it in every mode.
+// "repeaters": place ball droppers, "play": click lines to hear them.
+// Clicking a holder or repeater toggles it in every mode except edit.
 let mode = 'draw';
 
 const HINTS = {
   draw: 'Drag anywhere to draw a line. Longer = lower note. Pick a line type below (1-4).',
-  edit: 'Drag a line or holder to move it. On a selected line, drag the ring (or scroll) to rotate and the diamond to resize. Delete removes it.',
+  edit: 'Drag anything to move it. On a selected line, drag the ring (or scroll) to rotate and the diamond to resize. Scroll on a repeater to change its speed. Delete removes it.',
   balls: 'Click to drop a ball, hold to keep dropping. Balls play a line\'s note when they hit it.',
   holders: 'Click to place a holder (on a line it takes that note). Click a holder to turn it on/off, Shift+click removes it.',
+  repeaters: 'Click to place a repeater: it drops a ball on the beat. Click a repeater to pause/start it, Shift+click removes it.',
   play: 'Click, or hold and drag to keep playing. Left = low, right = high; lines play their own note.',
 };
 
@@ -146,6 +165,7 @@ clearButton.addEventListener('click', () => {
   lines.clear();
   balls.clear();
   holders.clear();
+  repeaters.clear();
 });
 
 addEventListener('keydown', (e) => {
@@ -155,6 +175,7 @@ addEventListener('keydown', (e) => {
   else if (key === 'e') setMode('edit');
   else if (key === 'b') setMode('balls');
   else if (key === 'h') setMode('holders');
+  else if (key === 'r') setMode('repeaters');
   else if (!lineTypes.hidden && VARIANTS.some((v) => v.key === key)) pickVariant(VARIANTS.find((v) => v.key === key).id);
   else if (key === 'p') setMode('play');
   else if (key === 'escape') {
@@ -198,6 +219,8 @@ const pulseBackground = (amount) => {
   bg.kick.value = Math.min(1, bg.kick.value + amount);
   bg.level.value = Math.min(1, bg.level.value + amount * 0.1);
 };
+
+const repeaterUnderPointer = () => raycaster.intersectObjects(repeaters.meshes())[0]?.object.userData.repeater ?? null;
 
 const holderUnderPointer = () => raycaster.intersectObjects(holders.meshes())[0]?.object.userData.holder ?? null;
 
@@ -263,6 +286,20 @@ canvas.addEventListener('pointerdown', (e) => {
     return;
   }
 
+  // same for repeaters: pause or start them
+  const repeater = mode === 'edit' ? null : repeaterUnderPointer();
+  if (repeater) {
+    if (mode === 'repeaters' && e.shiftKey) repeaters.remove(repeater);
+    else repeaters.toggle(repeater, beat);
+    return;
+  }
+
+  if (mode === 'repeaters') {
+    repeaters.add(hitPoint, beat);
+    pulseBackground(0.3);
+    return;
+  }
+
   if (mode === 'holders') {
     holders.toggle(holders.add(hitPoint, noteAt(hitPoint)));
     const line = lines.lineAt(hitPoint, HOLDER_SIZE / 2);
@@ -314,16 +351,16 @@ canvas.addEventListener('pointermove', (e) => {
     canvas.style.cursor = baseCursor();
   }
 
-  // show that a holder can be clicked, unless you're busy dragging something
+  // show that a holder or repeater can be clicked, unless you're busy dragging something
   const busy = mode === 'edit' || drawStart || holding || dropping;
-  if (!busy && holderUnderPointer()) canvas.style.cursor = 'pointer';
+  if (!busy && (holderUnderPointer() || repeaterUnderPointer())) canvas.style.cursor = 'pointer';
 });
 
 canvas.addEventListener('pointerup', (e) => {
   if (holding || dropping) stopHolding();
   if (mode === 'edit') {
     editor.pointerUp();
-    hint.textContent = HINTS.edit;
+    hint.textContent = editHint();
     canvas.style.cursor = editor.pointerMove(raycaster, hitPoint, e.shiftKey);
   }
   if (mode !== 'draw' || !drawStart) return;
@@ -367,6 +404,18 @@ addEventListener('resize', () => {
 const timer = new THREE.Timer();
 timer.connect(document); // pauses correctly when the tab is hidden
 
+// the beat every repeater follows
+let beat = 0;
+let beatTime = 0;
+
+// a ball out of a repeater, with a soft note for where it comes out
+const dropFromRepeater = (repeater) => {
+  const point = repeaters.dropPoint(repeater);
+  balls.drop(point.x, point.y);
+  playNote(noteAt(point), 0.25);
+  pulseBackground(0.05);
+};
+
 setMode('draw');
 showVariant(lineVariant);
 
@@ -393,6 +442,14 @@ renderer.setAnimationLoop((timestamp) => {
     }
   }
 
+  // repeaters drop their balls on the beat
+  beatTime += dt;
+  while (beatTime >= BEAT) {
+    beatTime -= BEAT;
+    beat++;
+    repeaters.onBeat(beat, dropFromRepeater);
+  }
+
   // ball hits flash less than clicks, so lots of balls don't get too flashy
   balls.step(dt, lines.lines, holders.holders, (line, strength) => {
     lines.hit(line, 0.25 + strength * 0.35);
@@ -402,6 +459,7 @@ renderer.setAnimationLoop((timestamp) => {
 
   lines.update(dt);
   holders.update(dt);
+  repeaters.update(dt);
   // the line you're holding keeps glowing
   if (heldLine) heldLine.pulse.value = Math.max(heldLine.pulse.value, 0.5);
 
