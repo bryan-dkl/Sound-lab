@@ -149,7 +149,7 @@ export const createBalls = async (scene) => {
   // --------------------------------------------------------- simulation
   let accumulator = 0;
 
-  // ball hits line: skip soft touches, call onHit(line, strength 0..1)
+  // ball hits line: skip soft touches, call onHit(line, strength 0..1, where)
   const handleCollision = (handle1, handle2, started, onHit) => {
     if (!started) return;
     const a = lookup.get(handle1);
@@ -166,7 +166,8 @@ export const createBalls = async (scene) => {
 
     ball.glow.value = 1;
     ball.tint.value.copy(line.tintColor);
-    onHit(line, THREE.MathUtils.clamp(speed / 12, 0.2, 1));
+    const { x, y } = ball.body.translation();
+    onHit(line, THREE.MathUtils.clamp(speed / 12, 0.2, 1), new THREE.Vector3(x, y, 0));
   };
 
   const step = (dt, lines, holders, onHit) => {

@@ -24,6 +24,12 @@ const MODES = ['draw', 'edit', 'balls', 'holders', 'repeaters', 'play'];
 const modeButton = (name) => document.querySelector(`#mode-${name}`);
 const variantButton = (id) => document.querySelector(`#variant-${id}`);
 
+// active look plus aria-pressed, so screen readers know too
+const setPressed = (button, on) => {
+  button.classList.toggle('active', on);
+  button.setAttribute('aria-pressed', String(on));
+};
+
 const showError = (message) => {
   errorText.textContent = message;
   errorText.hidden = false;
@@ -108,7 +114,7 @@ const editHint = () => {
 let lineVariant = VARIANTS[0].id;
 
 const showVariant = (id) => {
-  for (const variant of VARIANTS) variantButton(variant.id).classList.toggle('active', variant.id === id);
+  for (const variant of VARIANTS) setPressed(variantButton(variant.id), variant.id === id);
 };
 
 // line types only show while drawing or with a line selected in edit
@@ -150,7 +156,7 @@ const HINTS = {
 
 const setMode = (next) => {
   mode = next;
-  for (const name of MODES) modeButton(name).classList.toggle('active', name === mode);
+  for (const name of MODES) setPressed(modeButton(name), name === mode);
   hint.textContent = HINTS[mode];
   renderer.domElement.style.cursor = baseCursor();
   cancelDrawing();
@@ -291,11 +297,19 @@ const stopHolding = () => {
   releaseNote();
 };
 
+// background ripple at a point in the scene
+const DROP_TINT = new THREE.Color(0xb8a8ff);
+const rippleAt = (point, tint, strength) => {
+  const screen = point.clone().project(camera); // -1..1
+  bg.ripple(screen.x * 0.5 + 0.5, screen.y * 0.5 + 0.5, tint, strength);
+};
+
 // ball at the pointer, soft note for where it starts
 const dropBall = () => {
   balls.drop(hitPoint.x, hitPoint.y);
   playNote(noteForX(mouse.x), 0.4);
   pulseBackground(0.1);
+  rippleAt(hitPoint, DROP_TINT, 0.5);
 };
 
 // shader follows the mouse everywhere, also over the toolbar
@@ -452,6 +466,7 @@ const dropFromRepeater = (repeater) => {
   balls.drop(point.x, point.y);
   playNote(noteAt(point), 0.25);
   pulseBackground(0.05);
+  rippleAt(point, DROP_TINT, 0.4);
 };
 
 setMode('draw');
@@ -488,12 +503,15 @@ renderer.setAnimationLoop((timestamp) => {
     repeaters.onBeat(beat, dropFromRepeater);
   }
 
-  // ball hits flash less than clicks, so it stays calm
-  balls.step(dt, lines.lines, holders.holders, (line, strength) => {
+  // ball hits flash less than clicks, so it stays calm,
+  // and ripple the background where they hit
+  balls.step(dt, lines.lines, holders.holders, (line, strength, point) => {
     lines.hit(line, 0.25 + strength * 0.35);
     playNote(line.note, strength, line.variant);
-    pulseBackground(strength * 0.15);
+    pulseBackground(strength * 0.08);
+    rippleAt(point, line.tintColor, strength);
   });
+  bg.update(dt);
 
   lines.update(dt);
   holders.update(dt);

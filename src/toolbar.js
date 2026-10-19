@@ -74,7 +74,9 @@ export const setupToolbar = (toolbar) => {
     state.collapsed = collapsed;
     toolbar.classList.toggle('collapsed', collapsed);
     collapseButton.setAttribute('aria-expanded', String(!collapsed));
-    collapseButton.title = collapsed ? 'Open menu (M)' : 'Collapse menu (M)';
+    const label = collapsed ? 'Open menu' : 'Collapse menu';
+    collapseButton.setAttribute('aria-label', label);
+    collapseButton.title = `${label} (M)`;
     place(); // size changed, keep it on screen
     save(state);
   };
