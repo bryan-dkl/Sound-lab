@@ -22,7 +22,7 @@ export const createBalls = async (scene) => {
   // collider handle -> ball or line, for collision events
   const lookup = new Map();
 
-  // --------------------------------------------------------- line colliders
+  // line colliders
   // line -> { body, collider }
   const lineBodies = new Map();
 
@@ -72,7 +72,7 @@ export const createBalls = async (scene) => {
     }
   };
 
-  // ------------------------------------------------------- holder colliders
+  // holder colliders
   // holder -> body, kinematic so moving holders push balls
   const holderBodies = new Map();
 
@@ -96,7 +96,7 @@ export const createBalls = async (scene) => {
     }
   };
 
-  // --------------------------------------------------------------- balls
+  // balls
   const geometry = new THREE.SphereGeometry(BALL_RADIUS, 24, 16);
   const balls = [];
 
@@ -146,7 +146,7 @@ export const createBalls = async (scene) => {
     while (balls.length) removeBall(balls[0]);
   };
 
-  // --------------------------------------------------------- simulation
+  // simulation
   let accumulator = 0;
 
   // ball hits line: skip soft touches, call onHit(line, strength 0..1, where)

@@ -27,7 +27,7 @@ export const createBackground = (scene) => {
   const fragUV = vec2(screenUV.x, screenUV.y.oneMinus());
   const aspect = vec2(screenSize.x.div(screenSize.y), 1);
 
-  // ------------------------------------------------------------ ripples
+  // ripples
   // each slot: where (0..1, bottom-left), age in seconds, colour, strength.
   // a big age means the slot is unused
   const ripples = Array.from({ length: RIPPLES }, () => ({
@@ -37,7 +37,7 @@ export const createBackground = (scene) => {
     strength: uniform(0),
   }));
 
-  // unrolled: every slot adds a bend and a glow
+  // every slot adds a bend and a glow
   let warp = vec2(0);
   let glow = vec3(0);
   for (const ripple of ripples) {

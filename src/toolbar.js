@@ -29,7 +29,7 @@ export const setupToolbar = (toolbar) => {
   const state = { x: null, y: null, collapsed: false, ...load() };
   let drag = null; // { offsetX, offsetY } while dragging
 
-  // --------------------------------------------------------- position
+  // position
   // keep it fully on screen, also after resizing
   const place = () => {
     if (phone.matches || state.x === null) {
@@ -69,7 +69,7 @@ export const setupToolbar = (toolbar) => {
   header.addEventListener('pointerup', endDrag);
   header.addEventListener('pointercancel', endDrag);
 
-  // --------------------------------------------------------- collapse
+  // collapse
   const setCollapsed = (collapsed) => {
     state.collapsed = collapsed;
     toolbar.classList.toggle('collapsed', collapsed);

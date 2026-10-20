@@ -1,6 +1,6 @@
 // audio: Tone.js synths, one instrument per line variant
 
-// c major pentatonic, low to high: always sounds fine
+// c major pentatonic
 export const NOTES = [
   'C3', 'D3', 'E3', 'G3', 'A3',
   'C4', 'D4', 'E4', 'G4', 'A4',
@@ -17,9 +17,8 @@ export const startAudio = async () => {
   await Tone.start();
 };
 
-// ------------------------------------------------------------ instruments
+// TONE.JS
 // all PolySynths, so notes can overlap
-// transpose: semitones (12 = octave up), sustain: volume of a held note
 const INSTRUMENTS = {
   // soft and simple
   classic: {
@@ -50,7 +49,7 @@ const INSTRUMENTS = {
     },
   },
 
-  // bass an octave down: three detuned saws, harsh top filtered off
+  // bass an octave down
   deep: {
     transpose: -12,
     create: () => {
@@ -91,13 +90,13 @@ const instrumentFor = async (variant) => {
 
 const shift = (note, semitones) => (semitones ? Tone.Frequency(note).transpose(semitones).toNote() : note);
 
-// velocity 0..1: how hard (ball hits)
+// velocity
 export const playNote = async (note, velocity = 1, variant = 'classic') => {
   const { synth, transpose } = await instrumentFor(variant);
   synth.triggerAttackRelease(shift(note, transpose), '8n', undefined, velocity);
 };
 
-// ------------------------------------------------------------ held notes
+// held notes
 // one note sounds while the mouse is down
 let held = null; // { note, variant, synth, played }
 
@@ -121,9 +120,7 @@ export const releaseNote = () => {
   held = null;
 };
 
-// ------------------------------------------------------------ drones
-// drone: a note that plays until stopped (holders)
-// own synth each, so they never cut each other off
+// holders
 export const createDrone = () => {
   let drone = null;
   let wanted = null; // note to play, null = silent

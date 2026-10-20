@@ -48,7 +48,7 @@ export const randomizeScene = ({ lines, holders, repeaters, balls, bounds, beat,
     return lines.addLine(centre.clone().sub(half), centre.clone().add(half), variant);
   };
 
-  // --------------------------------------------------------- repeaters
+  // repeaters
   // spread out, each with a catching line below
   // fewer on narrow screens so they don't overlap
   const fits = Math.max(1, Math.floor(width / 2.2));
@@ -63,7 +63,7 @@ export const randomizeScene = ({ lines, holders, repeaters, balls, bounds, beat,
     added.push(addLine(catcher, variants.pop()));
   }
 
-  // --------------------------------------------------------- more lines
+  // more lines
   // lower down where there's room, placed anyway
   // after 30 tries so every variant shows up
   const randomSpot = () => new THREE.Vector3(random(left, right), random(bottom, top - height * 0.35), 0);
@@ -73,7 +73,7 @@ export const randomizeScene = ({ lines, holders, repeaters, balls, bounds, beat,
     added.push(addLine(centre, variants.pop()));
   }
 
-  // --------------------------------------------------------- holders
+  // holders
   // on two lines, taking their notes
   const withHolders = shuffle(added.filter(Boolean)).slice(0, 2);
   withHolders.forEach((line, i) => {
@@ -84,7 +84,7 @@ export const randomizeScene = ({ lines, holders, repeaters, balls, bounds, beat,
     if (i === 0) holders.toggle(holder); // one starts on
   });
 
-  // --------------------------------------------------------- balls
+  // balls
   // a few to start before the repeaters kick in
   const ballCount = 2 + Math.floor(Math.random() * 3);
   for (let i = 0; i < ballCount; i++) {

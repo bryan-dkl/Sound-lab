@@ -42,7 +42,7 @@ export const createHolders = (scene) => {
     else holder.drone.stop();
   };
 
-  // --------------------------------------------------------- editing
+  // editing
   const setPosition = (holder, x, y) => {
     holder.mesh.position.set(x, y, 0);
   };

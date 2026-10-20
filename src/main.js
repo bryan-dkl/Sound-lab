@@ -35,7 +35,7 @@ const showError = (message) => {
   errorText.hidden = false;
 };
 
-// ---------------------------------------------------------------- renderer
+// renderer
 // the shaders are raw WGSL and need real WebGPU,
 // otherwise WebGPURenderer quietly falls back to WebGL2
 if (!navigator.gpu) {
@@ -109,7 +109,7 @@ const editHint = () => {
   return item?.type === 'repeater' ? repeaterHint(item.target) : HINTS.edit;
 };
 
-// ------------------------------------------------------------ line variants
+// line variants
 // variant for new lines, in edit mode it changes the selected line
 let lineVariant = VARIANTS[0].id;
 
@@ -140,7 +140,7 @@ for (const variant of VARIANTS) {
   variantButton(variant.id).addEventListener('click', () => pickVariant(variant.id));
 }
 
-// ------------------------------------------------------------ modes
+// modes
 // draw, edit, balls, holders, repeaters, play
 // clicking a holder or repeater toggles it, except in edit
 let mode = 'draw';
@@ -231,7 +231,7 @@ addEventListener('keydown', (e) => {
   }
 });
 
-// ------------------------------------------------------------ pointer
+// pointer
 const mouse = new THREE.Vector2(0.5, 0.5); // 0..1, bottom-left origin like the shader
 const smoothMouse = mouse.clone();
 
@@ -445,14 +445,14 @@ canvas.addEventListener('wheel', (e) => {
 // no hanging notes when switching tabs or windows
 addEventListener('blur', stopHolding);
 
-// ------------------------------------------------------------ resize
+// resize
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
 
-// ------------------------------------------------------------ main loop
+// main loop
 const timer = new THREE.Timer();
 timer.connect(document); // pauses when the tab is hidden
 

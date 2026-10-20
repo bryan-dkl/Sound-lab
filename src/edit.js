@@ -10,7 +10,7 @@ const SCROLL_STEP = 120; // scroll per rate step
 
 // collections: { line, holder, repeater }, each with meshes(),
 // setPosition(), setSelected(), remove() and userData.<type> on meshes
-//
+
 // callbacks: onMoved(item), onSelect(item or null),
 // onResize(line, noteChanged), onRate(repeater)
 export const createEditor = (scene, collections, { onMoved, onSelect, onResize, onRate }) => {
@@ -27,7 +27,7 @@ export const createEditor = (scene, collections, { onMoved, onSelect, onResize, 
     const selectedOf = (type) => (selected?.type === type ? selected.target : null);
     const selectedLine = () => selectedOf('line');
 
-    // --------------------------------------------------------- handles
+    // handles
     // ring and diamond past the ends of the selected line,
     // each with a bigger invisible sphere to grab
     const handleMaterial = new THREE.MeshBasicNodeMaterial({ color: 0xffffff });
@@ -64,7 +64,7 @@ export const createEditor = (scene, collections, { onMoved, onSelect, onResize, 
 
     const over = (handle, raycaster) => selectedLine() !== null && raycaster.intersectObject(handle.hit).length > 0;
 
-    // --------------------------------------------------------- selection
+    // selection
     const select = (item) => {
         if (selected) collections[selected.type].setSelected(selected.target, false);
         selected = item;
@@ -110,7 +110,7 @@ export const createEditor = (scene, collections, { onMoved, onSelect, onResize, 
         return null;
     };
 
-    // --------------------------------------------------------- pointer
+    // pointer
     // raycaster aims at the pointer, point = hit on z = 0
 
     const pointerDown = (raycaster, point) => {

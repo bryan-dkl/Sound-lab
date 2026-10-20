@@ -20,7 +20,7 @@ const capsuleBetween = (start, end, radius) => {
     return { geometry, length, angle };
 };
 
-// ------------------------------------------------------------- materials
+// materials
 // all variants flash when hit and glow when selected, plus their own look
 // tint and length are uniforms, so resizing needs no new material
 const createMaterial = (variantId, tint, pulse, selected, length) => {
@@ -67,7 +67,7 @@ export const createLines = (scene) => {
 
     const lines = [];
 
-    // --------------------------------------------------------- preview line
+    // preview line
     // shows length and colour while dragging
     const previewTint = uniform(new THREE.Color());
     const previewMaterial = new THREE.MeshStandardNodeMaterial({
@@ -111,7 +111,7 @@ export const createLines = (scene) => {
         preview.visible = false;
     };
 
-    // --------------------------------------------------------- real lines
+    // real lines
     const addLine = (start, end, variantId = 'classic') => {
         end = clampEnd(start, end);
         if (start.distanceTo(end) < MIN_LENGTH) return null;
@@ -151,7 +151,7 @@ export const createLines = (scene) => {
         line.pulse.value = Math.max(line.pulse.value, amount);
     };
 
-    // --------------------------------------------------------- editing
+    // editing
     // moving and rotating keep the length, so the note too
     const setPosition = (line, x, y) => {
         line.mesh.position.set(x, y, 0);
