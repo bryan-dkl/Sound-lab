@@ -41,6 +41,24 @@
             <button type="button" id="randomize" aria-keyshortcuts="G"><span class="icon" aria-hidden="true">✦</span>
                 Randomize <kbd>G</kbd></button>
 
+            <section id="scale" aria-labelledby="scale-title">
+                <h2 class="title" id="scale-title">Scale</h2>
+                <div class="cycler">
+                    <button type="button" class="cycle" id="scale-prev" aria-label="Previous scale"
+                        title="Previous scale (Shift+S)" aria-keyshortcuts="Shift+S">‹</button>
+                    <output id="scale-name" aria-live="polite">Major pentatonic</output>
+                    <button type="button" class="cycle" id="scale-next" aria-label="Next scale" title="Next scale (S)"
+                        aria-keyshortcuts="S">›</button>
+                </div>
+                <div class="cycler">
+                    <button type="button" class="cycle" id="root-prev" aria-label="Previous key"
+                        title="Previous key (Shift+K)" aria-keyshortcuts="Shift+K">‹</button>
+                    <output id="root-name" aria-live="polite">Key of C</output>
+                    <button type="button" class="cycle" id="root-next" aria-label="Next key" title="Next key (K)"
+                        aria-keyshortcuts="K">›</button>
+                </div>
+            </section>
+
             <!-- only while drawing, or with a line selected in edit -->
             <section id="line-types" aria-labelledby="line-types-title" hidden>
                 <h2 class="title" id="line-types-title">Line type</h2>

@@ -1,11 +1,47 @@
-// audio: Tone.js synths, one instrument per line variant
+// audio: Tone.js synths, one instrument per line variant,
+// and the scale every note comes from
 
-// c major pentatonic
-export const NOTES = [
-  'C3', 'D3', 'E3', 'G3', 'A3',
-  'C4', 'D4', 'E4', 'G4', 'A4',
-  'C5', 'D5', 'E5', 'G5', 'A5',
+// scales
+// steps: semitones above the root within one octave
+export const SCALES = [
+  { id: 'major-pentatonic', name: 'Major pentatonic', steps: [0, 2, 4, 7, 9] },
+  { id: 'minor-pentatonic', name: 'Minor pentatonic', steps: [0, 3, 5, 7, 10] },
+  { id: 'blues', name: 'Blues', steps: [0, 3, 5, 6, 7, 10] },
+  { id: 'major', name: 'Major', steps: [0, 2, 4, 5, 7, 9, 11] },
+  { id: 'minor', name: 'Minor', steps: [0, 2, 3, 5, 7, 8, 10] },
+  { id: 'dorian', name: 'Dorian', steps: [0, 2, 3, 5, 7, 9, 10] },
+  { id: 'in-sen', name: 'Japanese', steps: [0, 1, 5, 7, 10] },
 ];
+
+export const ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+// lines and holders keep a step 0..14, the scale turns it into a note
+export const NOTE_COUNT = 15;
+
+// low to high from the root, scale repeating up the octaves.
+// roots above F start an octave lower so every key stays in the same range
+const buildNotes = (scale, root) => {
+  const index = ROOTS.indexOf(root);
+  const start = 48 + (index > 5 ? index - 12 : index); // 48 = C3 in midi
+  return Array.from({ length: NOTE_COUNT }, (_, i) => {
+    const midi = start + Math.floor(i / scale.steps.length) * 12 + scale.steps[i % scale.steps.length];
+    return `${ROOTS[midi % 12]}${Math.floor(midi / 12) - 1}`;
+  });
+};
+
+let scale = SCALES[0];
+let root = 'C';
+
+// the notes of the current scale and key, low to high
+export let NOTES = buildNotes(scale, root);
+
+export const currentScale = () => ({ scale, root });
+
+export const setScale = (scaleId, rootName) => {
+  scale = SCALES.find((s) => s.id === scaleId) ?? scale;
+  root = ROOTS.includes(rootName) ? rootName : root;
+  NOTES = buildNotes(scale, root);
+};
 
 // tone.js loads on the first click: importing it earlier
 // gives an "AudioContext was not allowed to start" warning
@@ -17,8 +53,9 @@ export const startAudio = async () => {
   await Tone.start();
 };
 
-// TONE.JS
+// instruments
 // all PolySynths, so notes can overlap
+// transpose: semitones (12 = octave up), sustain: volume of a held note
 const INSTRUMENTS = {
   // soft and simple
   classic: {
@@ -49,7 +86,7 @@ const INSTRUMENTS = {
     },
   },
 
-  // bass an octave down
+  // bass an octave down: three detuned saws, harsh top filtered off
   deep: {
     transpose: -12,
     create: () => {
@@ -90,7 +127,7 @@ const instrumentFor = async (variant) => {
 
 const shift = (note, semitones) => (semitones ? Tone.Frequency(note).transpose(semitones).toNote() : note);
 
-// velocity
+// velocity 0..1: how hard (ball hits)
 export const playNote = async (note, velocity = 1, variant = 'classic') => {
   const { synth, transpose } = await instrumentFor(variant);
   synth.triggerAttackRelease(shift(note, transpose), '8n', undefined, velocity);
@@ -120,7 +157,9 @@ export const releaseNote = () => {
   held = null;
 };
 
-// holders
+// drones
+// drone: a note that plays until stopped (holders)
+// own synth each, so they never cut each other off
 export const createDrone = () => {
   let drone = null;
   let wanted = null; // note to play, null = silent
@@ -158,7 +197,7 @@ export const createDrone = () => {
   return { start, stop, dispose };
 };
 
-// ------------------------------------------------------------ notes
+// notes
 // x 0..1: left = low, right = high
 export const noteForX = (x) => {
   const index = Math.floor(x * NOTES.length);

@@ -6,7 +6,7 @@ import { createEditor } from './edit.js';
 import { createBalls } from './balls.js';
 import { createHolders, HOLDER_SIZE } from './holders.js';
 import { createRepeaters, BEAT } from './repeaters.js';
-import { playNote, holdNote, releaseNote, noteForX, startAudio } from './audio.js';
+import { NOTES, SCALES, ROOTS, setScale, currentScale, playNote, holdNote, releaseNote, noteForX, startAudio } from './audio.js';
 import { VARIANTS, variantById } from './variants.js';
 import { randomizeScene } from './randomize.js';
 import { setupToolbar } from './toolbar.js';
@@ -18,6 +18,8 @@ const randomizeButton = document.querySelector('#randomize');
 const toolbar = document.querySelector('#toolbar');
 const toolbarUi = setupToolbar(toolbar);
 const hint = document.querySelector('#hint');
+const scaleName = document.querySelector('#scale-name');
+const rootName = document.querySelector('#root-name');
 
 // toolbar buttons per mode and variant: #mode-draw, #variant-glass, ...
 const MODES = ['draw', 'edit', 'balls', 'holders', 'repeaters', 'play'];
@@ -140,6 +142,40 @@ for (const variant of VARIANTS) {
   variantButton(variant.id).addEventListener('click', () => pickVariant(variant.id));
 }
 
+// scales
+const showScale = () => {
+  const { scale, root } = currentScale();
+  scaleName.textContent = scale.name;
+  rootName.textContent = `Key of ${root}`;
+};
+
+// quick run up the new scale, one octave. a new switch cancels the
+// last run and waits a bit, so clicking through only plays where you stop
+let scaleRun = [];
+const playScale = () => {
+  for (const timer of scaleRun) clearTimeout(timer);
+  const { scale } = currentScale();
+  scaleRun = NOTES.slice(0, scale.steps.length + 1).map((note, i) => setTimeout(() => playNote(note, 0.5), 150 + i * 90));
+};
+
+// step through scales and keys (+1 next, -1 previous, wraps around),
+// everything on screen gets retuned
+const changeScale = (scaleStep, rootStep) => {
+  const { scale, root } = currentScale();
+  const nextScale = SCALES[(SCALES.indexOf(scale) + scaleStep + SCALES.length) % SCALES.length];
+  const nextRoot = ROOTS[(ROOTS.indexOf(root) + rootStep + ROOTS.length) % ROOTS.length];
+  setScale(nextScale.id, nextRoot);
+  lines.retune();
+  holders.retune();
+  showScale();
+  playScale();
+};
+
+document.querySelector('#scale-prev').addEventListener('click', () => changeScale(-1, 0));
+document.querySelector('#scale-next').addEventListener('click', () => changeScale(1, 0));
+document.querySelector('#root-prev').addEventListener('click', () => changeScale(0, -1));
+document.querySelector('#root-next').addEventListener('click', () => changeScale(0, 1));
+
 // modes
 // draw, edit, balls, holders, repeaters, play
 // clicking a holder or repeater toggles it, except in edit
@@ -217,6 +253,8 @@ addEventListener('keydown', (e) => {
   else if (key === 'h') setMode('holders');
   else if (key === 'r') setMode('repeaters');
   else if (key === 'm') toolbarUi.toggle();
+  else if (key === 's') changeScale(e.shiftKey ? -1 : 1, 0);
+  else if (key === 'k') changeScale(0, e.shiftKey ? -1 : 1);
   else if (key === 'g') {
     startAudio();
     randomize();

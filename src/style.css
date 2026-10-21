@@ -170,6 +170,32 @@ body {
   min-height: 3em;
 }
 
+#scale {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-top: 0.25rem;
+}
+
+.cycler {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+#toolbar .cycler button {
+  flex: none;
+  justify-content: center;
+  width: 2rem;
+  padding: 0.375rem 0;
+}
+
+.cycler output {
+  flex: 1;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
 #line-types {
   display: flex;
   flex-direction: column;
@@ -234,6 +260,7 @@ body {
     min-height: 0;
   }
 
+  #scale,
   #line-types {
     flex-basis: 100%;
   }
