@@ -15,7 +15,8 @@ export const createHolders = (scene) => {
   const geometry = new RoundedBoxGeometry(HOLDER_SIZE, HOLDER_SIZE, HOLDER_SIZE, 4, 0.1);
 
   const add = (point, note) => {
-    const tintColor = tintForNote(NOTES.indexOf(note));
+    const step = NOTES.indexOf(note); // place in the scale
+    const tintColor = tintForNote(step);
     const tint = uniform(tintColor.clone()); // uniform, so it can change colour
     const on = uniform(0); // eases 0 (off) to 1 (on)
     const selected = uniform(0);
@@ -30,7 +31,7 @@ export const createHolders = (scene) => {
     mesh.position.set(point.x, point.y, 0);
     scene.add(mesh);
 
-    const holder = { mesh, note, tintColor, tint, on, selected, active: false, drone: createDrone() };
+    const holder = { mesh, step, note, tintColor, tint, on, selected, active: false, drone: createDrone() };
     mesh.userData.holder = holder;
     holders.push(holder);
     return holder;
@@ -51,9 +52,18 @@ export const createHolders = (scene) => {
   const setNote = (holder, note) => {
     if (note === holder.note) return;
     holder.note = note;
-    holder.tintColor = tintForNote(NOTES.indexOf(note));
+    holder.step = NOTES.indexOf(note);
+    holder.tintColor = tintForNote(holder.step);
     holder.tint.value.copy(holder.tintColor);
     if (holder.active) holder.drone.start(note);
+  };
+
+  // new scale or key: same step, new note, playing ones switch right away
+  const retune = () => {
+    for (const holder of holders) {
+      holder.note = NOTES[holder.step];
+      if (holder.active) holder.drone.start(holder.note);
+    }
   };
 
   const setSelected = (holder, on) => {
@@ -93,6 +103,7 @@ export const createHolders = (scene) => {
     toggle,
     setPosition,
     setNote,
+    retune,
     setSelected,
     remove,
     clear,

@@ -4,12 +4,13 @@
 import * as THREE from 'three/webgpu';
 import { uniform, color, float, mix, uv, time, fract, smoothstep, normalView, positionViewDirection } from 'three/tsl';
 
-import { NOTES, MIN_LENGTH, MAX_LENGTH, noteIndexForLength } from './audio.js';
+import { NOTES, NOTE_COUNT, MIN_LENGTH, MAX_LENGTH, noteIndexForLength } from './audio.js';
 import { variantById } from './variants.js';
 
+// colour per step, so it stays the same when the scale changes
 export const tintForNote = (index) => {
     // low = warm red, high = cool violet
-    return new THREE.Color().setHSL((index / (NOTES.length - 1)) * 0.75, 0.85, 0.55);
+    return new THREE.Color().setHSL((index / (NOTE_COUNT - 1)) * 0.75, 0.85, 0.55);
 };
 
 // capsule between two points, rotated from its default y axis
@@ -131,6 +132,7 @@ export const createLines = (scene) => {
         const line = {
             mesh,
             length,
+            step: noteIndex, // place in the scale
             note: NOTES[noteIndex],
             variant: variant.id,
             radius: variant.radius,
@@ -198,6 +200,7 @@ export const createLines = (scene) => {
         line.mesh.position.set(anchor.x - Math.cos(angle) * length / 2, anchor.y - Math.sin(angle) * length / 2, 0);
 
         const noteIndex = noteIndexForLength(length);
+        line.step = noteIndex;
         line.note = NOTES[noteIndex];
         line.tintColor = tintForNote(noteIndex);
         line.tint.value.copy(line.tintColor);
@@ -247,9 +250,15 @@ export const createLines = (scene) => {
         }
     };
 
+    // new scale or key: same step, new note
+    const retune = () => {
+        for (const line of lines) line.note = NOTES[line.step];
+    };
+
     return {
         lines,
         meshes: () => lines.map((l) => l.mesh),
+        retune,
         updatePreview,
         hidePreview,
         addLine,
